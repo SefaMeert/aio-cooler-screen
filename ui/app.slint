@@ -383,6 +383,10 @@ export component AppWindow inherits Window {
     in property <string> ffmpeg-state;
     in property <bool> ffmpeg-busy;
     in property <float> ffmpeg-progress;
+    in-out property <bool> autostart;
+    in property <bool> autostart-busy;
+    in-out property <bool> show-tray;
+    in-out property <bool> login-tray;
 
     callback builtin-background(int);
     callback browse();
@@ -407,6 +411,9 @@ export component AppWindow inherits Window {
     callback download-ffmpeg();
     callback lhm-port-edited(string);
     callback open-url(string);
+    callback autostart-toggled(bool);
+    callback show-tray-toggled(bool);
+    callback login-toggled(bool);
 
     HorizontalLayout {
         // ---- Sidebar -----------------------------------------------------------------------
@@ -1271,6 +1278,44 @@ export component AppWindow inherits Window {
                             Button {
                                 text: "Open data folder";
                                 clicked => { root.open-data-folder(); }
+                            }
+                        }
+                    }
+                    Card {
+                        title: "Startup";
+                        SettingRow {
+                            label: "Start with Windows";
+                            hint: "Puts your design on the cooler right after boot, before you sign in. Changing it asks for admin rights.";
+                            HorizontalLayout {
+                                spacing: 10px;
+                                if root.autostart-busy: Spinner {
+                                    width: 20px;
+                                    height: 20px;
+                                    indeterminate: true;
+                                }
+                                Switch {
+                                    enabled: !root.autostart-busy;
+                                    checked <=> root.autostart;
+                                    toggled => { root.autostart-toggled(self.checked); }
+                                }
+                            }
+                        }
+                        Divider { }
+                        SettingRow {
+                            label: "Show icon in the system tray";
+                            hint: "Closing the window keeps the app in the tray. Turn off to quit when the window closes.";
+                            Switch {
+                                checked <=> root.show-tray;
+                                toggled => { root.show-tray-toggled(self.checked); }
+                            }
+                        }
+                        SettingRow {
+                            label: "Open in the tray when I sign in";
+                            hint: root.show-tray ? "Only the tray icon appears; click it to open this window." : "Needs the tray icon.";
+                            Switch {
+                                enabled: root.show-tray;
+                                checked <=> root.login-tray;
+                                toggled => { root.login-toggled(self.checked); }
                             }
                         }
                     }

@@ -316,6 +316,42 @@ pub fn uninstall(remove_files: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether the service starts with Windows (Automatic) or only on demand (Manual).
+pub fn set_autostart(on: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let out = Command::new("sc.exe")
+        .args(["config", SERVICE_NAME, "start=", if on { "auto" } else { "demand" }])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .output()
+        .map_err(|e| format!("cannot run sc.exe: {e}"))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!("could not change the startup type: {}", String::from_utf8_lossy(&out.stdout).trim()))
+    }
+}
+
+/// `Some(true)` when the service starts with Windows. Works without admin.
+pub fn query_autostart() -> Option<bool> {
+    let mgr = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT).ok()?;
+    let svc = mgr.open_service(SERVICE_NAME, ServiceAccess::QUERY_CONFIG).ok()?;
+    svc.query_config().ok().map(|c| c.start_type == ServiceStartType::AutoStart)
+}
+
+/// Stop the service (if running) and start it again, keeping its configuration.
+pub fn restart() -> Result<(), String> {
+    let mgr = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+        .map_err(|e| format!("cannot open service manager (run as admin): {e}"))?;
+    let svc = mgr
+        .open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::START)
+        .map_err(|e| format!("service not installed: {e}"))?;
+    if svc.query_status().is_ok_and(|s| s.current_state != ServiceState::Stopped) {
+        let _ = svc.stop();
+        wait_for_state(&svc, ServiceState::Stopped);
+    }
+    svc.start::<&str>(&[]).map_err(|e| format!("cannot start service: {e}"))
+}
+
 /// Current service state, or `None` when it is not installed. Works without admin.
 pub fn query_state() -> Option<ServiceState> {
     let mgr = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT).ok()?;

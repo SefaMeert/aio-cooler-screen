@@ -1,6 +1,6 @@
 [package]
 name = "aio-screen"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 description = "Backgrounds and live stats for the Monster AIO Cooler LCD (USB HID 1D6B:0130)"
 
@@ -20,6 +20,7 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Shel
 ureq = { version = "3", features = ["json"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
+tray-icon = "0.26.1"
 
 [build-dependencies]
 slint-build = "1"

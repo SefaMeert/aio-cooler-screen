@@ -18,6 +18,7 @@ use windows_service::service::ServiceState;
 use crate::config::{self, ClockStats, Config, CustomDesign, Design, FontChoice, Position, StatValues, Status, Widget, WidgetKind};
 use crate::media::{self, Fit, IMAGE_EXTENSIONS, SCREEN_SIZE, VIDEO_EXTENSIONS};
 use crate::sensors::{Reading, Stat};
+use crate::desktop::{self, Instance, Prefs, Tray, TrayAction};
 use crate::{ffmpeg, icon, overlay, service};
 
 const STATUS_STALE_MS: u128 = 5_000;
@@ -50,6 +51,7 @@ enum Job {
     Poster(Result<RgbaImage, String>),
     Media(Result<(String, bool, RgbaImage), String>, String),
     ServiceRestarted(Result<(), String>),
+    Autostart(Result<(), String>),
     FfmpegFound(Option<PathBuf>),
     FfmpegDownloaded(Result<(), String>),
 }
@@ -71,6 +73,9 @@ struct State {
     /// Custom design editor: the selected widget and, while dragging, the grab offset.
     selected_widget: Option<usize>,
     drag_offset: Option<(f32, f32)>,
+    prefs: Prefs,
+    tray: Option<Tray>,
+    last_theme_check: Instant,
 }
 
 impl State {
@@ -90,13 +95,23 @@ impl State {
     }
 }
 
-pub fn run() -> Result<(), String> {
+/// Run the GUI. With `start_in_tray` (used by the sign-in entry) only the tray icon appears.
+pub fn run(start_in_tray: bool) -> Result<(), String> {
+    // One copy at a time: a second launch just brings the running one forward.
+    let _instance = match desktop::claim_instance() {
+        Instance::First(handle) => handle,
+        Instance::AlreadyRunning => return Ok(()),
+    };
     // Skia renders text and shapes with proper anti-aliasing; fall back if it can't start.
     if slint::BackendSelector::new().renderer_name("skia".into()).select().is_err() {
         let _ = slint::BackendSelector::new().select();
     }
     let ui = AppWindow::new().map_err(|e| e.to_string())?;
+    let prefs = Prefs::load();
     let state = Rc::new(RefCell::new(State {
+        prefs,
+        tray: None,
+        last_theme_check: Instant::now(),
         preview_bg: default_background(),
         cfg: Config::load(),
         readings: Vec::new(),
@@ -116,11 +131,26 @@ pub fn run() -> Result<(), String> {
 
     init_ui(&ui, &state.borrow());
     {
-        let s = state.borrow();
+        let mut s = state.borrow_mut();
         load_current_poster(&s);
         s.spawn(|| Job::FfmpegFound(ffmpeg::find()));
+        let show = s.prefs.show_tray;
+        set_tray(&ui, &mut s, show);
     }
     wire_callbacks(&ui, &state);
+
+    // Closing the window keeps the app in the tray while the tray icon is shown.
+    let st = state.clone();
+    ui.window().on_close_requested(move || {
+        if st.borrow().tray.is_none() {
+            let _ = slint::quit_event_loop();
+        }
+        slint::CloseRequestResponse::HideWindow
+    });
+    let weak = ui.as_weak();
+    desktop::listen_for_show(move || {
+        let _ = weak.upgrade_in_event_loop(show_window);
+    });
 
     let timer = Timer::default();
     let (weak, st) = (ui.as_weak(), state.clone());
@@ -129,7 +159,29 @@ pub fn run() -> Result<(), String> {
             tick(&ui, &st);
         }
     });
-    ui.run().map_err(|e| e.to_string())
+    if !start_in_tray || state.borrow().tray.is_none() {
+        ui.show().map_err(|e| e.to_string())?;
+    }
+    slint::run_event_loop_until_quit().map_err(|e| e.to_string())
+}
+
+fn show_window(ui: AppWindow) {
+    let _ = ui.show();
+    ui.window().set_minimized(false);
+}
+
+/// Create or remove the tray icon, and reflect it in the Settings controls.
+fn set_tray(ui: &AppWindow, s: &mut State, on: bool) {
+    if on && s.tray.is_none() {
+        match Tray::new(s.cfg.stats.enabled) {
+            Ok(t) => s.tray = Some(t),
+            Err(e) => show_message(ui, false, format!("Could not create the tray icon: {e}")),
+        }
+    } else if !on {
+        s.tray = None;
+    }
+    ui.set_show_tray(s.tray.is_some());
+    ui.set_login_tray(desktop::open_at_login());
 }
 
 // ---------------------------------------------------------------------------------------
@@ -289,6 +341,7 @@ fn init_ui(ui: &AppWindow, state: &State) {
     ui.set_stat_rows(ModelRc::from(state.rows.clone()));
     ui.set_media_name(media_label(&state.cfg).into());
     ui.set_lhm_port(state.cfg.effective_lhm_port().to_string().into());
+    ui.set_autostart(service::query_autostart().unwrap_or(false));
     ui.set_ffmpeg_state("Checking…".into());
     load_design_into_ui(ui, &state.cfg);
     refresh_preview(ui, state);
@@ -493,6 +546,9 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         let mut s = st.borrow_mut();
         read_settings(&ui, &mut s.cfg);
         save(&ui, &s);
+        if let Some(t) = &s.tray {
+            t.set_stats_checked(s.cfg.stats.enabled);
+        }
         refresh_preview(&ui, &s);
         refresh_gallery(&ui, &s);
     });
@@ -754,7 +810,41 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         ui.set_busy(true);
         ui.set_busy_text("Restarting service…".into());
         show_message(&ui, true, "Approve the admin prompt to restart the background service.");
-        st.borrow().spawn(|| Job::ServiceRestarted(elevate("install", &result_file("install"))));
+        st.borrow().spawn(|| Job::ServiceRestarted(elevate("restart", &result_file("restart"))));
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_autostart_toggled(move |on| {
+        let Some(ui) = weak.upgrade() else { return };
+        ui.set_autostart_busy(true);
+        let what = if on { "set-autostart on" } else { "set-autostart off" };
+        st.borrow().spawn(move || Job::Autostart(elevate(what, &result_file("autostart"))));
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_show_tray_toggled(move |on| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        if !on {
+            // Without a tray icon, a sign-in start would leave the app invisible.
+            let _ = desktop::set_open_at_login(false);
+        }
+        s.prefs.show_tray = on;
+        if let Err(e) = s.prefs.save() {
+            show_message(&ui, false, format!("Could not save the setting: {e}"));
+        }
+        set_tray(&ui, &mut s, on);
+    });
+
+    let weak = ui.as_weak();
+    ui.on_login_toggled(move |on| {
+        let Some(ui) = weak.upgrade() else { return };
+        if let Err(e) = desktop::set_open_at_login(on) {
+            show_message(&ui, false, e);
+        }
+        ui.set_login_tray(desktop::open_at_login());
     });
 
     let weak = ui.as_weak();
@@ -796,6 +886,29 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
 fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     let mut s = state.borrow_mut();
 
+    let actions = s.tray.as_ref().map(Tray::poll).unwrap_or_default();
+    for action in actions {
+        match action {
+            TrayAction::Open => show_window(ui.clone_strong()),
+            TrayAction::ToggleStats(on) => {
+                s.cfg.stats.enabled = on;
+                save(ui, &s);
+                ui.set_stats_enabled(on);
+                refresh_preview(ui, &s);
+            }
+            TrayAction::Quit => {
+                let _ = slint::quit_event_loop();
+                return;
+            }
+        }
+    }
+    if s.last_theme_check.elapsed() >= Duration::from_secs(5) {
+        s.last_theme_check = Instant::now();
+        if let Some(t) = s.tray.as_mut() {
+            t.refresh_theme();
+        }
+    }
+
     while let Ok(job) = s.jobs.1.try_recv() {
         match job {
             Job::Poster(Ok(img)) => {
@@ -827,6 +940,13 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
                     }
                     Err(e) => show_message(ui, false, e),
                 }
+            }
+            Job::Autostart(r) => {
+                ui.set_autostart_busy(false);
+                if let Err(e) = r {
+                    show_message(ui, false, e);
+                }
+                ui.set_autostart(service::query_autostart().unwrap_or(false));
             }
             Job::ServiceRestarted(r) => {
                 ui.set_busy(false);
@@ -913,10 +1033,25 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     if s.last_process_check.elapsed() >= Duration::from_secs(3) {
         s.last_process_check = Instant::now();
         ui.set_official_running(official_app_running());
+        if !ui.get_autostart_busy() {
+            ui.set_autostart(service::query_autostart().unwrap_or(false));
+        }
     }
 
-    update_stat_rows(&mut s);
-    refresh_preview(ui, &s);
+    if let Some(t) = &s.tray {
+        let v = s.cfg.stats.resolve(&s.readings);
+        let tip = match (v.get(Stat::CpuTemp), v.get(Stat::GpuTemp)) {
+            (Some(c), Some(g)) if s.live => format!("AIO Cooler Screen\nCPU {c:.0}° · GPU {g:.0}°"),
+            _ => "AIO Cooler Screen".into(),
+        };
+        t.set_tooltip(&tip);
+    }
+
+    // Nothing to redraw while the window is hidden in the tray.
+    if ui.window().is_visible() {
+        update_stat_rows(&mut s);
+        refresh_preview(ui, &s);
+    }
 }
 
 fn fmt_value(stat: Stat, v: f64) -> String {

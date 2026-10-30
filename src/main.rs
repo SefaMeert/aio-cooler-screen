@@ -2,6 +2,7 @@
 
 mod config;
 mod cpu;
+mod desktop;
 mod device;
 mod ffmpeg;
 mod gui;
@@ -53,7 +54,15 @@ fn main() -> ExitCode {
         Some("service") => report(service::run_dispatcher(), None),
         Some("install") => report(service::install(), out),
         // The installer's uninstaller passes --keep-files and deletes the files itself.
-        Some("uninstall") => report(service::uninstall(!flag("--keep-files")), out),
+        Some("uninstall") => {
+            let _ = desktop::set_open_at_login(false);
+            report(service::uninstall(!flag("--keep-files")), out)
+        }
+        Some("restart") => report(service::restart(), out),
+        Some("set-autostart") => {
+            let on = args.get(2).map(String::as_str) != Some("off");
+            report(service::set_autostart(on), args.get(3))
+        }
         Some("fetch-ffmpeg") => report(ffmpeg::fetch_command(out), out),
         Some("make-icon") => report(icon::write_assets(std::path::Path::new(out.map_or("assets", |s| s.as_str()))), None),
         Some("dump-sensors") => {
@@ -64,6 +73,6 @@ fn main() -> ExitCode {
             }
             report(r, None)
         }
-        _ => report(gui::run(), None),
+        _ => report(gui::run(flag("--tray")), None),
     }
 }

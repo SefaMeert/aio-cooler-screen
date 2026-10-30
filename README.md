@@ -23,13 +23,18 @@ official app.
   NVIDIA GPU temperature and load, with nothing extra to install. HWiNFO or LibreHardwareMonitor
   can add more sensors. Pick any sensor for each stat.
 - **Starts with Windows:** a background service drives the screen from boot, keeps it awake
-  and wakes it again after sleep, with no admin prompts.
+  and wakes it again after sleep, with no admin prompts. You can turn this off.
+- **Tray icon:** a monochrome icon that follows your Windows theme. Its menu has Open,
+  Show live stats and Quit, and the app can start in the tray when you sign in.
 - **Windows 11 look:** light/dark mode follows Windows.
 
 ## Install
 
 1. Download `AIO-Cooler-Screen-Setup-x.y.z.exe` from [Releases](../../releases) and run it.
    Tick **Download ffmpeg** if you want video backgrounds and don't have ffmpeg already.
+   The installer isn't code-signed, so Windows may show **"Windows protected your PC"**.
+   Click **More info → Run anyway**. Each release lists the installer's SHA-256 if you want
+   to check the download.
 2. **Close the official Monster app** (or uninstall it). Both apps would drive the screen.
 3. Open **AIO Cooler Screen** from the Start menu and pick a design and a background.
 

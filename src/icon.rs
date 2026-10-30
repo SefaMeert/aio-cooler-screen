@@ -78,6 +78,56 @@ pub fn render(size: u32) -> RgbaImage {
     img
 }
 
+/// Single-colour version of the icon (the gauge ring and dot) for the system tray.
+pub fn render_mono(size: u32, rgb: [u8; 3]) -> RgbaImage {
+    let s = size as f32;
+    let mut pm = Pixmap::new(size, size).expect("icon size");
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(rgb[0], rgb[1], rgb[2], 255);
+    paint.anti_alias = true;
+    let (c, rad) = (s / 2.0, s * 0.36);
+    let mut pb = PathBuilder::new();
+    let steps = 48;
+    for i in 0..=steps {
+        let a = (135.0 + 270.0 * i as f32 / steps as f32 * 0.82).to_radians();
+        let (x, y) = (c + rad * a.cos(), c + rad * a.sin());
+        if i == 0 {
+            pb.move_to(x, y)
+        } else {
+            pb.line_to(x, y)
+        }
+    }
+    if let Some(path) = pb.finish() {
+        let stroke = Stroke { width: s * 0.15, line_cap: LineCap::Round, ..Default::default() };
+        pm.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
+    if let Some(dot) = PathBuilder::from_circle(c, c, s * 0.12) {
+        pm.fill_path(&dot, &paint, FillRule::Winding, Transform::identity(), None);
+    }
+    let mut img = RgbaImage::new(size, size);
+    for (dst, src) in img.pixels_mut().zip(pm.pixels()) {
+        let c = src.demultiply();
+        *dst = image::Rgba([c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    img
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tray_icon_is_single_colour() {
+        let img = render_mono(32, [255, 255, 255]);
+        assert!(img.pixels().filter(|p| p[3] > 0).all(|p| p[0] == 255 && p[1] == 255 && p[2] == 255));
+        assert!(img.pixels().any(|p| p[3] == 255));
+        if let Ok(dir) = std::env::var("CARGO_TARGET_TMPDIR") {
+            let _ = img.save(std::path::Path::new(&dir).join("tray-dark-taskbar.png"));
+            let _ = render_mono(32, [24, 24, 24]).save(std::path::Path::new(&dir).join("tray-light-taskbar.png"));
+        }
+    }
+}
+
 /// Write icon.png (256 px) and a multi-size icon.ico into `dir`.
 pub fn write_assets(dir: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
