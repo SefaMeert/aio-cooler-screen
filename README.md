@@ -15,8 +15,9 @@ official app.
 - **Four stat designs:** ring gauges, dashboard tiles, one big stat, and clock + stats.
   Each design has its own font, text size, outline, colours, background dimming and
   design-specific options.
-- **Live sensors:** CPU and GPU temperature and load from HWiNFO or LibreHardwareMonitor,
-  plus NVIDIA GPUs directly through the driver. Pick any sensor for each stat.
+- **Live sensors out of the box:** CPU temperature (AMD Ryzen and Intel Core) and load, plus
+  NVIDIA GPU temperature and load, with nothing extra to install. HWiNFO or LibreHardwareMonitor
+  can add more sensors. Pick any sensor for each stat.
 - **Starts with Windows:** a background service drives the screen from boot, keeps it awake
   and wakes it again after sleep, with no admin prompts.
 - **Windows 11 look:** light/dark mode follows Windows.
@@ -26,24 +27,22 @@ official app.
 1. Download `AIO-Cooler-Screen-Setup-x.y.z.exe` from [Releases](../../releases) and run it.
    Tick **Download ffmpeg** if you want video backgrounds and don't have ffmpeg already.
 2. **Close the official Monster app** (or uninstall it). Both apps would drive the screen.
-3. Set up a sensor source (below), open **AIO Cooler Screen** from the Start menu, pick a
-   design and a background.
+3. Open **AIO Cooler Screen** from the Start menu and pick a design and a background.
 
 Requires Windows 10/11 (64-bit).
 
 ## Sensors
 
-CPU temperatures need a hardware monitor with a kernel driver, so AIO Cooler Screen reads them
-from one you run. It detects these automatically:
+| Source | What it reads | Setup |
+| --- | --- | --- |
+| Built in | CPU temperature: AMD Ryzen (Zen 1-5, families 17h-1Ah) via the SMN thermal register, Intel Core via the package thermal MSR. CPU load from Windows. | None. The installer adds the signed, open-source [PawnIO](https://pawnio.eu) driver if it's missing. |
+| NVIDIA GPUs | Temperature and load through NVML from the NVIDIA driver. | None. |
+| [HWiNFO](https://www.hwinfo.com/download/) (optional) | Everything HWiNFO sees, e.g. AMD/Intel GPUs, motherboard and drives. | Settings → enable **Shared Memory Support** and keep HWiNFO running. The free version switches this off after 12 hours. |
+| [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) (optional) | Everything LibreHardwareMonitor sees. | Run as administrator, then **Options → Remote Web Server → Run**. The default port is 8085; you can change it on the Device page. |
 
-| Source | Setup |
-| --- | --- |
-| [HWiNFO](https://www.hwinfo.com/download/) | Settings → enable **Shared Memory Support**, keep HWiNFO running (the sensor window can be closed). The free version switches this off after 12 hours. |
-| [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) | Run as administrator, then **Options → Remote Web Server → Run** (default port 8085; change it on the Device page if needed). |
-| NVIDIA GPUs | Read directly through NVML from the NVIDIA driver; nothing to set up. |
-
-The **Live stats** page lets you choose which reading feeds each stat; **Auto** picks the CPU
-package temperature and your discrete GPU.
+Reading CPU temperatures needs a kernel driver. PawnIO is the one LibreHardwareMonitor and
+FanControl use; it works with Memory Integrity enabled. The **Live stats** page lets you choose
+which reading feeds each stat; **Auto** picks the built-in CPU temperature and your discrete GPU.
 
 ## ffmpeg
 
@@ -64,6 +63,10 @@ cargo build --release              # target\release\aio-screen.exe
 .\build-installer.ps1              # dist\AIO-Cooler-Screen-Setup-<version>.exe
 ```
 
+`build-installer.ps1` downloads pinned, verified copies of the PawnIO installer and modules into
+`third_party\`. To try the built-in CPU sensor from a dev build, copy `AMDFamily17.bin` or
+`IntelMSR.bin` into `target\release\pawnio\`.
+
 `aio-screen.exe` is the GUI. The installer registers it as the `AioScreen` service with
 `aio-screen.exe install`. Other commands: `uninstall`, `fetch-ffmpeg`, `dump-sensors <file>`,
 `make-icon <dir>`.
@@ -83,7 +86,8 @@ documents the protocol, which was worked out from USB traffic:
 | --- | --- |
 | [`device.rs`](src/device.rs) | Talks to the cooler. |
 | [`overlay.rs`](src/overlay.rs) | Draws the designs (tiny-skia + ab_glyph). |
-| [`sensors.rs`](src/sensors.rs) | Reads HWiNFO, LibreHardwareMonitor and NVML. |
+| [`cpu.rs`](src/cpu.rs) | Built-in CPU temperature (PawnIO) and load. |
+| [`sensors.rs`](src/sensors.rs) | Reads NVML, HWiNFO and LibreHardwareMonitor, and combines all sources. |
 | [`service.rs`](src/service.rs) | The Windows service. |
 | [`gui.rs`](src/gui.rs) + [`ui/app.slint`](ui/app.slint) | The app. |
 
@@ -95,6 +99,6 @@ using a protocol worked out from observing USB traffic; use it at your own risk.
 
 ## License
 
-[MIT](LICENSE). The UI is built with [Slint](https://slint.dev) under its royalty-free
-licence (credited on the About page). ffmpeg isn't bundled; when downloaded, it's a separate
-program under its own (GPL) licence.
+[MIT](LICENSE). The installer also includes or downloads separately licensed components:
+the PawnIO driver (GPL-2.0 with an exception) and modules (LGPL-2.1), optional ffmpeg (GPL),
+and the Slint UI toolkit (royalty-free licence). See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

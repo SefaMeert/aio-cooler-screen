@@ -408,141 +408,6 @@ export component AppWindow inherits Window {
                         }
 
                         Card {
-                            title: "Background";
-                            subtitle: "Current: " + root.media-name;
-                            HorizontalLayout {
-                                spacing: 8px;
-                                Rectangle {
-                                    horizontal-stretch: 1;
-                                    border-radius: 4px;
-                                    background: #80808014;
-                                    border-width: 1px;
-                                    border-color: #80808030;
-                                    min-height: 32px;
-                                    Text {
-                                        x: 10px;
-                                        width: parent.width - 20px;
-                                        text: root.source-path == "" ? "Choose an image or video…" : root.source-path;
-                                        opacity: root.source-path == "" ? 0.6 : 1;
-                                        color: Palette.foreground;
-                                        font-size: 13px;
-                                        vertical-alignment: center;
-                                        overflow: elide;
-                                    }
-                                }
-                                Button {
-                                    text: "Browse…";
-                                    clicked => { root.browse(); }
-                                }
-                            }
-                            if root.source-is-video && !root.ffmpeg-ok: InfoBar {
-                                warning: true;
-                                text: root.ffmpeg-busy ? "Downloading ffmpeg…" : "Videos need ffmpeg, which isn't installed yet.";
-                                if !root.ffmpeg-busy: Button {
-                                    text: "Download ffmpeg";
-                                    clicked => { root.download-ffmpeg(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Fit";
-                                ComboBox {
-                                    width: 220px;
-                                    model: ["Crop to fill", "Fit inside (black bars)", "Stretch"];
-                                    current-index <=> root.fit;
-                                }
-                            }
-                            HorizontalLayout {
-                                spacing: 12px;
-                                alignment: end;
-                                if root.busy: Spinner {
-                                    width: 22px;
-                                    height: 22px;
-                                    indeterminate: true;
-                                }
-                                if root.busy: Text {
-                                    text: root.busy-text;
-                                    vertical-alignment: center;
-                                    color: Palette.foreground;
-                                }
-                                Button {
-                                    text: "Apply to screen";
-                                    primary: true;
-                                    enabled: !root.busy && root.source-path != "" && (root.ffmpeg-ok || !root.source-is-video);
-                                    clicked => { root.apply-media(); }
-                                }
-                            }
-                        }
-
-                        Card {
-                            title: "Appearance";
-                            subtitle: "Applies to the " + root.design-names[root.design] + " design.";
-                            SettingRow {
-                                label: "Font";
-                                ComboBox {
-                                    width: 200px;
-                                    model: ["Segoe UI", "Bahnschrift", "Arial", "Consolas"];
-                                    current-index <=> root.font-index;
-                                    selected => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Text size";
-                                hint: Math.round(root.text-scale) + "%";
-                                Slider {
-                                    width: 220px;
-                                    minimum: 70;
-                                    maximum: 130;
-                                    value <=> root.text-scale;
-                                    released => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Text outline";
-                                hint: "A dark edge around text so it reads well on bright backgrounds.";
-                                Switch {
-                                    checked <=> root.outline;
-                                    toggled => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Text colour";
-                                Swatches {
-                                    colors: root.swatches;
-                                    selected <=> root.text-color-index;
-                                    picked => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Accent colour";
-                                hint: "Rings, bars and highlights.";
-                                Swatches {
-                                    colors: root.swatches;
-                                    selected <=> root.accent-index;
-                                    picked => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Colour temperatures";
-                                hint: "Blue when cool through green and amber to red when hot.";
-                                Switch {
-                                    checked <=> root.temp-colors;
-                                    toggled => { root.settings-changed(); }
-                                }
-                            }
-                            SettingRow {
-                                label: "Darken background";
-                                hint: Math.round(root.dim) + "%";
-                                Slider {
-                                    width: 220px;
-                                    minimum: 0;
-                                    maximum: 80;
-                                    value <=> root.dim;
-                                    released => { root.settings-changed(); }
-                                }
-                            }
-                        }
-
-                        Card {
                             title: root.design-names[root.design] + " options";
 
                             if root.design == 0: VerticalLayout {
@@ -712,6 +577,141 @@ export component AppWindow inherits Window {
                             }
                         }
 
+                        Card {
+                            title: "Background";
+                            subtitle: "Current: " + root.media-name;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    border-radius: 4px;
+                                    background: #80808014;
+                                    border-width: 1px;
+                                    border-color: #80808030;
+                                    min-height: 32px;
+                                    Text {
+                                        x: 10px;
+                                        width: parent.width - 20px;
+                                        text: root.source-path == "" ? "Choose an image or video…" : root.source-path;
+                                        opacity: root.source-path == "" ? 0.6 : 1;
+                                        color: Palette.foreground;
+                                        font-size: 13px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                                Button {
+                                    text: "Browse…";
+                                    clicked => { root.browse(); }
+                                }
+                            }
+                            if root.source-is-video && !root.ffmpeg-ok: InfoBar {
+                                warning: true;
+                                text: root.ffmpeg-busy ? "Downloading ffmpeg…" : "Videos need ffmpeg, which isn't installed yet.";
+                                if !root.ffmpeg-busy: Button {
+                                    text: "Download ffmpeg";
+                                    clicked => { root.download-ffmpeg(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Fit";
+                                ComboBox {
+                                    width: 220px;
+                                    model: ["Crop to fill", "Fit inside (black bars)", "Stretch"];
+                                    current-index <=> root.fit;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                alignment: end;
+                                if root.busy: Spinner {
+                                    width: 22px;
+                                    height: 22px;
+                                    indeterminate: true;
+                                }
+                                if root.busy: Text {
+                                    text: root.busy-text;
+                                    vertical-alignment: center;
+                                    color: Palette.foreground;
+                                }
+                                Button {
+                                    text: "Apply to screen";
+                                    primary: true;
+                                    enabled: !root.busy && root.source-path != "" && (root.ffmpeg-ok || !root.source-is-video);
+                                    clicked => { root.apply-media(); }
+                                }
+                            }
+                        }
+
+                        Card {
+                            title: "Appearance";
+                            subtitle: "Applies to the " + root.design-names[root.design] + " design.";
+                            SettingRow {
+                                label: "Font";
+                                ComboBox {
+                                    width: 200px;
+                                    model: ["Segoe UI", "Bahnschrift", "Arial", "Consolas"];
+                                    current-index <=> root.font-index;
+                                    selected => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text size";
+                                hint: Math.round(root.text-scale) + "%";
+                                Slider {
+                                    width: 220px;
+                                    minimum: 70;
+                                    maximum: 130;
+                                    value <=> root.text-scale;
+                                    released => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text outline";
+                                hint: "A dark edge around text so it reads well on bright backgrounds.";
+                                Switch {
+                                    checked <=> root.outline;
+                                    toggled => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text colour";
+                                Swatches {
+                                    colors: root.swatches;
+                                    selected <=> root.text-color-index;
+                                    picked => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Accent colour";
+                                hint: "Rings, bars and highlights.";
+                                Swatches {
+                                    colors: root.swatches;
+                                    selected <=> root.accent-index;
+                                    picked => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Colour temperatures";
+                                hint: "Blue when cool through green and amber to red when hot.";
+                                Switch {
+                                    checked <=> root.temp-colors;
+                                    toggled => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Darken background";
+                                hint: Math.round(root.dim) + "%";
+                                Slider {
+                                    width: 220px;
+                                    minimum: 0;
+                                    maximum: 80;
+                                    value <=> root.dim;
+                                    released => { root.settings-changed(); }
+                                }
+                            }
+                        }
+
                         if root.message != "": InfoBar {
                             text: root.message;
                             ok: root.message-ok;
@@ -744,7 +744,7 @@ export component AppWindow inherits Window {
                     }
                     if !root.sensors-ok: InfoBar {
                         warning: true;
-                        text: "No sensor source found. Run HWiNFO or LibreHardwareMonitor; see the Device page.";
+                        text: "No sensor data yet. Check the Device page.";
                     }
                     if root.official-running: InfoBar {
                         warning: true;
@@ -850,7 +850,7 @@ export component AppWindow inherits Window {
                     }
                     Card {
                         title: "Sensors";
-                        subtitle: "Read from HWiNFO or LibreHardwareMonitor (whichever is running), plus NVIDIA GPUs directly.";
+                        subtitle: "CPU temperature and load and NVIDIA GPUs are read directly. HWiNFO or LibreHardwareMonitor can add more sensors (optional).";
                         Text {
                             text: root.sensors-state;
                             color: Palette.foreground;
@@ -858,7 +858,7 @@ export component AppWindow inherits Window {
                             wrap: word-wrap;
                         }
                         Text {
-                            text: "HWiNFO: open Settings, enable \"Shared Memory Support\" and keep HWiNFO running (sensors window can be closed). The free version turns this off after 12 hours.\nLibreHardwareMonitor: run it as administrator and enable Options > Remote Web Server > Run.";
+                            text: "Optional extra sources, for other GPUs or more sensors:\nHWiNFO: open Settings, enable \"Shared Memory Support\" and keep HWiNFO running. The free version turns this off after 12 hours.\nLibreHardwareMonitor: run it as administrator and enable Options > Remote Web Server > Run.";
                             color: Palette.foreground;
                             opacity: 0.75;
                             font-size: 12px;
@@ -930,7 +930,7 @@ export component AppWindow inherits Window {
                             wrap: word-wrap;
                             color: Palette.foreground;
                             font-size: 13px;
-                            text: "Sensors come from HWiNFO or LibreHardwareMonitor and, for NVIDIA GPUs, the driver's NVML. Videos are converted with ffmpeg. Made with Slint.";
+                            text: "CPU temperatures are read through the open-source PawnIO driver, CPU load from Windows and NVIDIA GPUs through the driver's NVML; HWiNFO and LibreHardwareMonitor can add more. Videos are converted with ffmpeg. Made with Slint. See THIRD-PARTY-NOTICES.md in the install folder.";
                         }
                     }
                     HorizontalLayout {

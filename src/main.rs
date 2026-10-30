@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
 mod config;
+mod cpu;
 mod device;
 mod ffmpeg;
 mod gui;
@@ -17,7 +18,9 @@ use std::process::ExitCode;
 fn dump_sensors(out: &str) -> Result<(), String> {
     use std::fmt::Write as _;
     let cfg = config::Config::load();
-    let (readings, summary) = sensors::SensorHub::default().read(cfg.effective_lhm_port(), &[]);
+    let mut hub = sensors::SensorHub::default();
+    std::thread::sleep(std::time::Duration::from_millis(500)); // let CPU load accumulate a delta
+    let (readings, summary) = hub.read(cfg.effective_lhm_port(), &[]);
     let mut s = format!("{summary}\n{} readings\n", readings.len());
     for stat in sensors::Stat::ALL {
         let pick = stat.auto_pick(&readings).map(|r| format!("{} = {:.1} {}", r.key, r.value, r.units));

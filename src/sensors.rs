@@ -1,13 +1,16 @@
-//! Sensor readings from tools the user already runs, auto-detected:
-//! - HWiNFO with "Shared Memory Support" enabled (Global\HWiNFO_SENS_SM2),
-//! - LibreHardwareMonitor with its web server enabled (http://127.0.0.1:<port>/data.json),
-//! - NVIDIA GPUs directly through NVML (nvml.dll, installed with the NVIDIA driver).
+//! Sensor readings, auto-detected:
+//! - built in: CPU temperature through PawnIO and CPU load from Windows (see cpu.rs),
+//! - NVIDIA GPUs directly through NVML (nvml.dll, installed with the NVIDIA driver),
+//! - optionally HWiNFO with "Shared Memory Support" enabled (Global\HWiNFO_SENS_SM2),
+//! - optionally LibreHardwareMonitor's web server (http://127.0.0.1:<port>/data.json).
 
 use std::ffi::c_char;
 use std::time::{Duration, Instant};
 
 use libloading::os::windows::Library;
 use serde::{Deserialize, Serialize};
+
+use crate::cpu::{CpuLoad, CpuTemp};
 
 // HWiNFO SENSOR_READING_TYPE values (also used for our own Reading::kind).
 pub const READING_TEMP: i32 = 1;
@@ -305,9 +308,13 @@ impl Drop for Nvml {
 
 pub struct SensorHub {
     agent: ureq::Agent,
+    cpu_temp: Option<CpuTemp>,
+    cpu_temp_status: String,
+    cpu_load: CpuLoad,
+    cpu_name: String,
     nvml: Option<Nvml>,
     nvml_status: String,
-    next_nvml_try: Instant,
+    next_driver_try: Instant,
 }
 
 impl Default for SensorHub {
@@ -316,22 +323,56 @@ impl Default for SensorHub {
             .timeout_global(Some(Duration::from_millis(800)))
             .build()
             .into();
-        SensorHub { agent, nvml: None, nvml_status: String::new(), next_nvml_try: Instant::now() }
+        let mut cpu_load = CpuLoad::default();
+        cpu_load.read(); // first sample, so the next read already has a delta
+        SensorHub {
+            agent,
+            cpu_temp: None,
+            cpu_temp_status: String::new(),
+            cpu_load,
+            cpu_name: crate::cpu::cpu_info().name,
+            nvml: None,
+            nvml_status: String::new(),
+            next_driver_try: Instant::now(),
+        }
     }
 }
 
 impl SensorHub {
     /// Poll every source. Returns the readings and a one-line summary per source.
     pub fn read(&mut self, lhm_port: u16, kinds: &[i32]) -> (Vec<Reading>, String) {
-        if self.nvml.is_none() && Instant::now() >= self.next_nvml_try {
-            match Nvml::load() {
-                Ok(n) => self.nvml = Some(n),
-                Err(e) => self.nvml_status = e,
+        if (self.nvml.is_none() || self.cpu_temp.is_none()) && Instant::now() >= self.next_driver_try {
+            if self.cpu_temp.is_none() {
+                match CpuTemp::load() {
+                    Ok(t) => self.cpu_temp = Some(t),
+                    Err(e) => self.cpu_temp_status = e,
+                }
             }
-            self.next_nvml_try = Instant::now() + NVML_RETRY;
+            if self.nvml.is_none() {
+                match Nvml::load() {
+                    Ok(n) => self.nvml = Some(n),
+                    Err(e) => self.nvml_status = e,
+                }
+            }
+            self.next_driver_try = Instant::now() + NVML_RETRY;
         }
         let mut readings = Vec::new();
         let mut summary = Vec::new();
+
+        let want = |k: i32| kinds.is_empty() || kinds.contains(&k);
+        match &self.cpu_temp {
+            Some(t) => {
+                if let Some((v, name)) = t.read().filter(|_| want(READING_TEMP)) {
+                    readings.push(Reading::new("Built-in", t.cpu_name(), name, READING_TEMP, LOC_CPU, v, "°C"));
+                }
+                summary.push(format!("Built-in CPU temperature: ok ({})", t.cpu_name()));
+            }
+            None => summary.push(format!("Built-in CPU temperature: {}", self.cpu_temp_status)),
+        }
+        if let Some(load) = self.cpu_load.read().filter(|_| want(READING_USAGE)) {
+            readings.push(Reading::new("Built-in", &self.cpu_name, "Total CPU Usage", READING_USAGE, LOC_CPU, load, "%"));
+        }
+
         for (name, result) in [("HWiNFO", read_hwinfo(kinds)), ("LibreHardwareMonitor", read_lhm(&self.agent, lhm_port, kinds))] {
             match result {
                 Ok(r) => {
@@ -407,23 +448,26 @@ impl Stat {
             }
             let n = r.name.to_ascii_lowercase();
             let s = r.sensor.to_ascii_lowercase();
+            // Prefer our own readings so the stats don't change when HWiNFO/LHM start or stop.
+            let builtin = if s.starts_with("built-in") { 5 } else { 0 };
             match self {
                 Stat::CpuTemp if r.sensor_location == LOC_CPU => {
-                    if n.contains("tctl/tdie") {
-                        100
-                    } else if n.contains("package") {
-                        90
-                    } else if n.contains("tdie") || n.contains("tctl") {
-                        80
-                    } else if n.contains("core") && n.contains("max") {
-                        70
-                    } else {
-                        10
-                    }
+                    builtin
+                        + if n.contains("tctl/tdie") {
+                            100
+                        } else if n.contains("package") {
+                            90
+                        } else if n.contains("tdie") || n.contains("tctl") {
+                            80
+                        } else if n.contains("core") && n.contains("max") {
+                            70
+                        } else {
+                            10
+                        }
                 }
                 Stat::CpuLoad if r.sensor_location == LOC_CPU => {
                     if n.contains("total cpu usage") || n == "cpu total" {
-                        100
+                        100 + builtin
                     } else {
                         0
                     }

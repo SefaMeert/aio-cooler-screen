@@ -37,12 +37,19 @@ Name: "ffmpeg"; Description: "Download ffmpeg (about 90 MB) for video background
 
 [Files]
 Source: "..\target\release\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+; PawnIO: signed open-source driver for reading CPU temperatures (installed only if missing).
+Source: "..\third_party\PawnIO_setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: PawnIOMissing
+Source: "..\third_party\pawnio\AMDFamily17.bin"; DestDir: "{app}\pawnio"; Flags: ignoreversion
+Source: "..\third_party\pawnio\IntelMSR.bin"; DestDir: "{app}\pawnio"; Flags: ignoreversion
+Source: "..\third_party\pawnio\COPYING"; DestDir: "{app}\pawnio"; DestName: "COPYING-modules.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
+Filename: "{tmp}\PawnIO_setup.exe"; Parameters: "-install -silent"; StatusMsg: "Installing the PawnIO sensor driver..."; Flags: waituntilterminated; Check: PawnIOMissing
 Filename: "{app}\{#AppExe}"; Parameters: "fetch-ffmpeg"; StatusMsg: "Downloading ffmpeg for video backgrounds..."; Flags: runhidden waituntilterminated; Tasks: ffmpeg
 Filename: "{app}\{#AppExe}"; Parameters: "install"; StatusMsg: "Installing and starting the background service..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#AppExe}"; Description: "Open {#AppName}"; Flags: nowait postinstall skipifsilent
@@ -54,6 +61,12 @@ Filename: "{app}\{#AppExe}"; Parameters: "uninstall --keep-files"; Flags: runhid
 Type: filesandordirs; Name: "{app}\ffmpeg"
 
 [Code]
+{ PawnIO may already be installed by another tool (LibreHardwareMonitor, FanControl...). }
+function PawnIOMissing(): Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{commonpf64}\PawnIO\PawnIOLib.dll'));
+end;
+
 { Offer the ffmpeg download only when no ffmpeg is installed already. }
 function FfmpegMissing(): Boolean;
 begin
