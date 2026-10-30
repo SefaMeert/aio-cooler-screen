@@ -15,7 +15,7 @@ use image::{Rgba, RgbaImage};
 use slint::{ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel};
 use windows_service::service::ServiceState;
 
-use crate::config::{self, ClockStats, Config, Design, FontChoice, Position, StatValues, Status};
+use crate::config::{self, ClockStats, Config, CustomDesign, Design, FontChoice, Position, StatValues, Status, Widget, WidgetKind};
 use crate::media::{self, Fit, IMAGE_EXTENSIONS, SCREEN_SIZE, VIDEO_EXTENSIONS};
 use crate::sensors::{Reading, Stat};
 use crate::{ffmpeg, icon, overlay, service};
@@ -34,6 +34,8 @@ const SWATCHES: [[u8; 3]; 8] = [
 const FITS: [Fit; 3] = [Fit::Cover, Fit::Contain, Fit::Stretch];
 const POSITIONS: [Position; 3] = [Position::Top, Position::Center, Position::Bottom];
 const CLOCK_STATS: [ClockStats; 3] = [ClockStats::Temps, ClockStats::Loads, ClockStats::None];
+/// Displayed size of the round preview, in logical pixels (the canvas is 480).
+const PREVIEW_PX: f32 = 280.0;
 
 enum Job {
     Poster(Result<RgbaImage, String>),
@@ -57,6 +59,9 @@ struct State {
     rows_sig: String,
     ffmpeg: Option<PathBuf>,
     ffmpeg_progress_file: Option<PathBuf>,
+    /// Custom design editor: the selected widget and, while dragging, the grab offset.
+    selected_widget: Option<usize>,
+    drag_offset: Option<(f32, f32)>,
 }
 
 impl State {
@@ -96,6 +101,8 @@ pub fn run() -> Result<(), String> {
         rows_sig: String::new(),
         ffmpeg: None,
         ffmpeg_progress_file: None,
+        selected_widget: None,
+        drag_offset: None,
     }));
 
     init_ui(&ui, &state.borrow());
@@ -138,9 +145,20 @@ fn compose(bg: &RgbaImage, cfg: &config::StatsConfig, values: &StatValues) -> Rg
     img
 }
 
-fn design_thumbnails(state: &State) -> Vec<Image> {
+/// Every design in gallery order: the built-ins, then the user's own.
+fn gallery(cfg: &Config) -> Vec<Design> {
+    Design::ALL.into_iter().chain(cfg.stats.custom.iter().map(|d| Design::Custom(d.id))).collect()
+}
+
+fn design_index(cfg: &Config) -> i32 {
+    gallery(cfg).iter().position(|d| *d == cfg.stats.design).unwrap_or(0) as i32
+}
+
+/// Rebuild the gallery: thumbnails and names for every design.
+fn refresh_gallery(ui: &AppWindow, state: &State) {
     let bg = default_background();
-    Design::ALL
+    let designs = gallery(&state.cfg);
+    let thumbs: Vec<Image> = designs
         .iter()
         .map(|&design| {
             let mut stats = state.cfg.stats.clone();
@@ -149,12 +167,50 @@ fn design_thumbnails(state: &State) -> Vec<Image> {
             let img = compose(&bg, &stats, &StatValues::sample());
             to_image(&image::imageops::resize(&img, 224, 224, FilterType::Lanczos3))
         })
-        .collect()
+        .collect();
+    let names: Vec<SharedString> = designs
+        .iter()
+        .map(|d| match d {
+            Design::Custom(id) => state.cfg.stats.custom.iter().find(|c| c.id == *id).map_or("Custom".into(), |c| c.name.as_str().into()),
+            d => d.name().into(),
+        })
+        .collect();
+    ui.set_design_names(ModelRc::new(VecModel::from(names)));
+    ui.set_design_thumbs(ModelRc::new(VecModel::from(thumbs)));
+    ui.set_design(design_index(&state.cfg));
 }
 
 fn refresh_preview(ui: &AppWindow, state: &State) {
-    ui.set_preview(to_image(&compose(&state.preview_bg, &state.cfg.stats, &state.values())));
+    let mut img = compose(&state.preview_bg, &state.cfg.stats, &state.values());
+    if let (Some(d), Some(i)) = (state.cfg.stats.custom_design(), state.selected_widget) {
+        if let Some(b) = overlay::widget_bounds(d, i, &state.values(), chrono::Local::now()) {
+            outline(&mut img, b);
+        }
+    }
+    ui.set_preview(to_image(&img));
     ui.set_preview_live(state.live);
+}
+
+/// Dashed selection rectangle, drawn only in the preview.
+fn outline(img: &mut RgbaImage, [x0, y0, x1, y1]: [f32; 4]) {
+    let (w, h) = (img.width() as i32, img.height() as i32);
+    let (x0, y0, x1, y1) = ((x0 - 6.0) as i32, (y0 - 6.0) as i32, (x1 + 6.0) as i32, (y1 + 6.0) as i32);
+    let mut put = |x: i32, y: i32, along: i32| {
+        if x >= 0 && y >= 0 && x < w && y < h {
+            let c = if (along / 6) % 2 == 0 { Rgba([255, 255, 255, 255]) } else { Rgba([20, 20, 20, 255]) };
+            img.put_pixel(x as u32, y as u32, c);
+        }
+    };
+    for t in 0..2 {
+        for x in x0..=x1 {
+            put(x, y0 - t, x);
+            put(x, y1 + t, x);
+        }
+        for y in y0..=y1 {
+            put(x0 - t, y, y);
+            put(x1 + t, y, y);
+        }
+    }
 }
 
 fn load_current_poster(state: &State) {
@@ -201,9 +257,9 @@ fn media_label(cfg: &Config) -> String {
 fn init_ui(ui: &AppWindow, state: &State) {
     ui.set_app_icon(to_image(&icon::render(64)));
     ui.set_version(env!("CARGO_PKG_VERSION").into());
-    let names: Vec<SharedString> = Design::ALL.iter().map(|d| d.name().into()).collect();
-    ui.set_design_names(ModelRc::new(VecModel::from(names)));
-    ui.set_design_thumbs(ModelRc::new(VecModel::from(design_thumbnails(state))));
+    let kinds: Vec<SharedString> = WidgetKind::ALL.iter().map(|k| k.name().into()).collect();
+    ui.set_widget_kinds(ModelRc::new(VecModel::from(kinds)));
+    refresh_gallery(ui, state);
     let swatches: Vec<slint::Color> = SWATCHES.iter().map(|c| slint::Color::from_rgb_u8(c[0], c[1], c[2])).collect();
     ui.set_swatches(ModelRc::new(VecModel::from(swatches)));
     ui.set_stat_rows(ModelRc::from(state.rows.clone()));
@@ -217,8 +273,12 @@ fn init_ui(ui: &AppWindow, state: &State) {
 /// Show the selected design's look and every design's options in the controls.
 fn load_design_into_ui(ui: &AppWindow, cfg: &Config) {
     let s = &cfg.stats;
-    ui.set_design(s.design.index() as i32);
+    ui.set_design(design_index(cfg));
     ui.set_stats_enabled(s.enabled);
+    if let Some(d) = s.custom_design() {
+        ui.set_custom_name(d.name.as_str().into());
+        ui.set_cu_h24(d.h24);
+    }
 
     let look = s.look();
     ui.set_text_color_index(swatch_index(look.text));
@@ -257,10 +317,91 @@ fn load_design_into_ui(ui: &AppWindow, cfg: &Config) {
     ui.set_c_stats(index_of(&CLOCK_STATS, &c.stats));
 }
 
+/// Which widget properties the editor shows for each kind, and the size slider's range.
+fn size_range(kind: WidgetKind) -> (&'static str, f32, f32) {
+    match kind {
+        WidgetKind::Ring => ("Radius", 20.0, 235.0),
+        WidgetKind::Bar => ("Width", 20.0, 460.0),
+        _ => ("Text size", 10.0, 220.0),
+    }
+}
+
+fn widget_label(w: &Widget) -> String {
+    match w.kind {
+        WidgetKind::Label => format!("Text \"{}\"", w.text),
+        k if k.uses_stat() => format!("{}: {}", k.name(), w.stat.title()),
+        k => k.name().to_string(),
+    }
+}
+
+/// Fill the editor: widget list and the selected widget's properties.
+fn load_widgets_into_ui(ui: &AppWindow, state: &State) {
+    let Some(d) = state.cfg.stats.custom_design() else {
+        ui.set_widget_names(ModelRc::new(VecModel::<SharedString>::default()));
+        ui.set_selected_widget(-1);
+        return;
+    };
+    let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w).into()).collect();
+    ui.set_widget_names(ModelRc::new(VecModel::from(names)));
+    let Some((i, w)) = state.selected_widget.and_then(|i| d.widgets.get(i).map(|w| (i, w))) else {
+        ui.set_selected_widget(-1);
+        return;
+    };
+    ui.set_selected_widget(i as i32);
+    ui.set_w_kind_name(w.kind.name().into());
+    ui.set_w_uses_stat(w.kind.uses_stat());
+    ui.set_w_is_text(w.kind.is_text());
+    ui.set_w_is_label(w.kind == WidgetKind::Label);
+    ui.set_w_has_thickness(matches!(w.kind, WidgetKind::Ring | WidgetKind::Bar));
+    let (label, min, max) = size_range(w.kind);
+    ui.set_w_size_label(label.into());
+    ui.set_w_size_min(min);
+    ui.set_w_size_max(max);
+    ui.set_w_stat(index_of(&Stat::ALL, &w.stat));
+    ui.set_w_text(w.text.as_str().into());
+    ui.set_w_size(w.size);
+    ui.set_w_thickness(w.thickness);
+    ui.set_w_x(w.x);
+    ui.set_w_y(w.y);
+    ui.set_w_bold(w.bold);
+    ui.set_w_auto(w.auto_color);
+    ui.set_w_color_index(swatch_index(w.color));
+}
+
+/// Copy the editor's property controls into the selected widget.
+fn read_widget(ui: &AppWindow, state: &mut State) {
+    let Some(i) = state.selected_widget else { return };
+    let Some(w) = state.cfg.stats.custom_design_mut().and_then(|d| d.widgets.get_mut(i)) else { return };
+    w.stat = Stat::ALL[ui.get_w_stat().clamp(0, 3) as usize];
+    w.text = ui.get_w_text().to_string();
+    w.size = ui.get_w_size().round();
+    w.thickness = ui.get_w_thickness().round();
+    w.x = ui.get_w_x().round();
+    w.y = ui.get_w_y().round();
+    w.bold = ui.get_w_bold();
+    w.auto_color = ui.get_w_auto();
+    if let Some(c) = swatch(ui.get_w_color_index()) {
+        w.color = c;
+    }
+}
+
+/// Map a point on the displayed preview to the 480x480 canvas.
+fn to_canvas(x: f32, y: f32) -> (f32, f32) {
+    let k = SCREEN_SIZE as f32 / PREVIEW_PX;
+    (x * k, y * k)
+}
+
 /// Copy the controls back into the config (the look goes to the selected design).
 fn read_settings(ui: &AppWindow, cfg: &mut Config) {
     let s = &mut cfg.stats;
     s.enabled = ui.get_stats_enabled();
+    if let Some(d) = s.custom_design_mut() {
+        d.name = ui.get_custom_name().trim().to_string();
+        if d.name.is_empty() {
+            d.name = "My design".into();
+        }
+        d.h24 = ui.get_cu_h24();
+    }
 
     let look = s.look_mut();
     if let Some(c) = swatch(ui.get_text_color_index()) {
@@ -329,7 +470,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         read_settings(&ui, &mut s.cfg);
         save(&ui, &s);
         refresh_preview(&ui, &s);
-        ui.set_design_thumbs(ModelRc::new(VecModel::from(design_thumbnails(&s))));
+        refresh_gallery(&ui, &s);
     });
 
     let weak = ui.as_weak();
@@ -337,11 +478,175 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     ui.on_design_selected(move |i| {
         let Some(ui) = weak.upgrade() else { return };
         let mut s = st.borrow_mut();
-        s.cfg.stats.design = Design::ALL[i.clamp(0, 3) as usize];
+        let Some(&design) = gallery(&s.cfg).get(i.max(0) as usize) else { return };
+        s.cfg.stats.design = design;
         s.cfg.stats.enabled = true;
+        s.selected_widget = None;
         save(&ui, &s);
         load_design_into_ui(&ui, &s.cfg);
+        load_widgets_into_ui(&ui, &s);
         refresh_preview(&ui, &s);
+    });
+
+    // --- Custom design editor ---------------------------------------------------------------
+    // Applies an edit to the config, then saves and refreshes everything that shows designs.
+    fn edited(ui: &AppWindow, s: &mut State) {
+        save(ui, s);
+        refresh_gallery(ui, s);
+        load_design_into_ui(ui, &s.cfg);
+        load_widgets_into_ui(ui, s);
+        refresh_preview(ui, s);
+    }
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_new_design(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let id = s.cfg.stats.custom.iter().map(|d| d.id).max().unwrap_or(0) + 1;
+        let name = format!("My design {}", s.cfg.stats.custom.len() + 1);
+        s.cfg.stats.custom.push(CustomDesign::starter(id, name));
+        s.cfg.stats.design = Design::Custom(id);
+        s.cfg.stats.enabled = true;
+        s.selected_widget = Some(2);
+        edited(&ui, &mut s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_duplicate_design(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let Some(mut copy) = s.cfg.stats.custom_design().cloned() else { return };
+        copy.id = s.cfg.stats.custom.iter().map(|d| d.id).max().unwrap_or(0) + 1;
+        copy.name = format!("{} copy", copy.name);
+        s.cfg.stats.design = Design::Custom(copy.id);
+        s.cfg.stats.custom.push(copy);
+        edited(&ui, &mut s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_delete_design(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        if let Design::Custom(id) = s.cfg.stats.design {
+            s.cfg.stats.custom.retain(|d| d.id != id);
+            s.cfg.stats.design = Design::Gauges;
+            s.selected_widget = None;
+            edited(&ui, &mut s);
+        }
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_add_widget(move |kind| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let kind = WidgetKind::ALL[kind.clamp(0, 5) as usize];
+        let Some(d) = s.cfg.stats.custom_design_mut() else { return };
+        d.widgets.push(Widget::new(kind));
+        let i = d.widgets.len() - 1;
+        s.selected_widget = Some(i);
+        edited(&ui, &mut s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_widget_selected(move |i| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        s.selected_widget = usize::try_from(i).ok();
+        load_widgets_into_ui(&ui, &s);
+        refresh_preview(&ui, &s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_widget_changed(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        read_widget(&ui, &mut s);
+        save(&ui, &s);
+        // Only the list labels can change; keep the property controls as they are.
+        if let Some(d) = s.cfg.stats.custom_design() {
+            let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w).into()).collect();
+            ui.set_widget_names(ModelRc::new(VecModel::from(names)));
+        }
+        refresh_preview(&ui, &s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_move_widget(move |dir| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let Some(i) = s.selected_widget else { return };
+        let Some(d) = s.cfg.stats.custom_design_mut() else { return };
+        let j = i as i32 + dir.signum();
+        if j < 0 || j as usize >= d.widgets.len() {
+            return;
+        }
+        d.widgets.swap(i, j as usize);
+        s.selected_widget = Some(j as usize);
+        edited(&ui, &mut s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_delete_widget(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let Some(i) = s.selected_widget else { return };
+        if let Some(d) = s.cfg.stats.custom_design_mut() {
+            if i < d.widgets.len() {
+                d.widgets.remove(i);
+            }
+        }
+        s.selected_widget = None;
+        edited(&ui, &mut s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_preview_pressed(move |x, y| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let (cx, cy) = to_canvas(x, y);
+        let values = s.values();
+        let hit = s.cfg.stats.custom_design().and_then(|d| overlay::hit_test(d, &values, chrono::Local::now(), cx, cy));
+        s.selected_widget = hit;
+        s.drag_offset = hit.and_then(|i| s.cfg.stats.custom_design()?.widgets.get(i).map(|w| (w.x - cx, w.y - cy)));
+        load_widgets_into_ui(&ui, &s);
+        refresh_preview(&ui, &s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_preview_dragged(move |x, y| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let (Some(i), Some((ox, oy))) = (s.selected_widget, s.drag_offset) else { return };
+        let (cx, cy) = to_canvas(x, y);
+        let max = SCREEN_SIZE as f32;
+        let Some(w) = s.cfg.stats.custom_design_mut().and_then(|d| d.widgets.get_mut(i)) else { return };
+        w.x = (cx + ox).round().clamp(0.0, max);
+        w.y = (cy + oy).round().clamp(0.0, max);
+        let (wx, wy) = (w.x, w.y);
+        ui.set_w_x(wx);
+        ui.set_w_y(wy);
+        refresh_preview(&ui, &s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_preview_released(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        if s.drag_offset.take().is_some() {
+            save(&ui, &s);
+            refresh_gallery(&ui, &s);
+        }
     });
 
     let weak = ui.as_weak();

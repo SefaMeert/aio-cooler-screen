@@ -13,8 +13,8 @@ use tiny_skia::{
 };
 
 use crate::config::{
-    BigStatOptions, ClockOptions, ClockStats, Design, FontChoice, GaugesOptions, Look, Position, StatValues,
-    StatsConfig, TilesOptions,
+    BigStatOptions, ClockOptions, ClockStats, CustomDesign, Design, FontChoice, GaugesOptions, Look, Position,
+    StatValues, StatsConfig, TilesOptions, Widget, WidgetKind,
 };
 use crate::media::SCREEN_SIZE;
 use crate::sensors::Stat;
@@ -179,10 +179,15 @@ fn arc_path(cx: f32, cy: f32, r: f32, start_deg: f32, end_deg: f32) -> Option<ti
 }
 
 fn stroke_arc(pm: &mut Pixmap, r: f32, start: f32, end: f32, width: f32, rgb: Rgb, alpha: u8) {
-    if (end - start).abs() < 0.5 {
+    stroke_arc_at(pm, CENTER, CENTER, r, start, end, width, rgb, alpha);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stroke_arc_at(pm: &mut Pixmap, cx: f32, cy: f32, r: f32, start: f32, end: f32, width: f32, rgb: Rgb, alpha: u8) {
+    if (end - start).abs() < 0.5 || r <= 0.0 {
         return;
     }
-    if let Some(path) = arc_path(CENTER, CENTER, r, start, end) {
+    if let Some(path) = arc_path(cx, cy, r, start, end) {
         let stroke = Stroke { width, line_cap: LineCap::Round, ..Default::default() };
         pm.stroke_path(&path, &paint(rgb, alpha), &stroke, Transform::identity(), None);
     }
@@ -400,20 +405,54 @@ fn big_stat(pm: &mut Pixmap, o: &BigStatOptions, v: &StatValues, t: &mut Texts) 
     }
 }
 
-fn clock(pm: &mut Pixmap, o: &ClockOptions, v: &StatValues, now: DateTime<Local>, t: &mut Texts) {
+/// The time as "14:09", or "2:09" plus "PM" in 12-hour mode.
+fn time_parts(now: DateTime<Local>, h24: bool) -> (String, Option<String>) {
+    if h24 {
+        (now.format("%H:%M").to_string(), None)
+    } else {
+        (now.format("%-I:%M").to_string(), Some(now.format("%p").to_string()))
+    }
+}
+
+fn date_text(now: DateTime<Local>, h24: bool) -> String {
+    if h24 { now.format("%a %-d %b") } else { now.format("%a, %b %-d") }.to_string().to_uppercase()
+}
+
+/// Sizes of the digits and the AM/PM suffix, and the gap between them (all scaled).
+fn time_metrics(fonts: &Fonts, look: &Look, size: f32, time: &str, suffix: Option<&str>) -> (f32, f32, f32, f32, f32) {
+    let s = size * look.text_scale.clamp(60, 140) as f32 / 100.0;
+    let ss = s * 0.3;
+    let wt = text_width(&fonts.bold, s, time);
+    let ws = suffix.map_or(0.0, |x| text_width(&fonts.regular, ss, x));
+    let gap = if suffix.is_some() { s * 0.07 } else { 0.0 };
+    (s, ss, wt, ws, gap)
+}
+
+/// Time centred at `cx`, with a smaller AM/PM top-aligned to the right of the digits.
+fn push_time(t: &mut Texts, fonts: &Fonts, size: f32, cx: f32, baseline: f32, now: DateTime<Local>, h24: bool, color: [u8; 4]) {
+    let (time, suffix) = time_parts(now, h24);
+    let (s, ss, wt, ws, gap) = time_metrics(fonts, t.look, size, &time, suffix.as_deref());
+    let left = cx - (wt + gap + ws) / 2.0;
+    t.items.push(Text { bold: true, size: s, cx: left + wt / 2.0, baseline, text: time, color });
+    if let Some(suffix) = suffix {
+        // Cap heights are ~0.7 of the size: line up the tops of digits and suffix.
+        let sb = baseline - 0.7 * s + 0.7 * ss;
+        t.items.push(Text { bold: false, size: ss, cx: left + wt + gap + ws / 2.0, baseline: sb, text: suffix, color });
+    }
+}
+
+fn clock(pm: &mut Pixmap, o: &ClockOptions, v: &StatValues, now: DateTime<Local>, t: &mut Texts, fonts: &Fonts) {
     let look = &o.look;
     if o.seconds_ring {
         stroke_arc(pm, 226.0, -90.0, 270.0, 4.0, look.accent, 120);
         let secs = now.format("%S").to_string().parse::<f32>().unwrap_or(0.0);
         stroke_arc(pm, 226.0, -90.0, -90.0 + 360.0 * secs / 60.0, 4.0, look.accent, 255);
     }
-    let time = if o.h24 { now.format("%H:%M").to_string() } else { now.format("%-I:%M").to_string() };
     let has_stats = o.stats != ClockStats::None;
     let time_y = if o.date || has_stats { 250.0 } else { 285.0 };
-    t.add(true, 132.0, CENTER, time_y, time, rgba(look.text, 255));
+    push_time(t, fonts, 132.0, CENTER, time_y, now, o.h24, rgba(look.text, 255));
     if o.date {
-        let date = if o.h24 { now.format("%a %-d %b") } else { now.format("%a, %b %-d") }.to_string();
-        t.add(false, 34.0, CENTER, 300.0, date.to_uppercase(), rgba(look.accent, 255));
+        t.add(false, 34.0, CENTER, 300.0, date_text(now, o.h24), rgba(look.accent, 255));
     }
     let pair = match o.stats {
         ClockStats::Temps => Some((Stat::CpuTemp, Stat::GpuTemp)),
@@ -432,6 +471,95 @@ fn clock(pm: &mut Pixmap, o: &ClockOptions, v: &StatValues, now: DateTime<Local>
     }
 }
 
+// ---------------------------------------------------------------------------------------
+// Custom designs
+
+fn widget_color(look: &Look, w: &Widget, v: &StatValues) -> Rgb {
+    match (w.auto_color, w.kind) {
+        (false, _) => w.color,
+        (true, WidgetKind::Ring | WidgetKind::Bar) => stat_color(look, w.stat, v.get(w.stat)),
+        (true, _) => look.text,
+    }
+}
+
+/// The text a text widget shows (time widgets also return their AM/PM suffix).
+fn widget_text(d: &CustomDesign, w: &Widget, v: &StatValues, now: DateTime<Local>) -> (String, Option<String>) {
+    match w.kind {
+        WidgetKind::Value => (format_value(w.stat, v.get(w.stat)), None),
+        WidgetKind::Label => (w.text.clone(), None),
+        WidgetKind::Time => time_parts(now, d.h24),
+        WidgetKind::Date => (date_text(now, d.h24), None),
+        WidgetKind::Ring | WidgetKind::Bar => (String::new(), None),
+    }
+}
+
+fn text_baseline(y: f32, size: f32) -> f32 {
+    // Centre the cap height (~0.7 of the size) on y.
+    y + size * 0.35
+}
+
+fn custom(pm: &mut Pixmap, d: &CustomDesign, v: &StatValues, now: DateTime<Local>, t: &mut Texts, fonts: &Fonts) {
+    let track = [255, 255, 255];
+    for w in &d.widgets {
+        let color = widget_color(&d.look, w, v);
+        let scaled = w.size * d.look.text_scale.clamp(60, 140) as f32 / 100.0;
+        match w.kind {
+            WidgetKind::Ring => {
+                let (start, sweep) = (135.0_f32, 270.0_f32);
+                stroke_arc_at(pm, w.x, w.y, w.size, start, start + sweep, w.thickness, track, 34);
+                stroke_arc_at(pm, w.x, w.y, w.size, start, start + sweep * fraction(v.get(w.stat)), w.thickness, color, 255);
+            }
+            WidgetKind::Bar => {
+                let (x, y, h) = (w.x - w.size / 2.0, w.y - w.thickness / 2.0, w.thickness.max(2.0));
+                fill_rounded_rect(pm, x, y, w.size, h, h / 2.0, track, 40);
+                let filled = (w.size * fraction(v.get(w.stat))).max(h);
+                fill_rounded_rect(pm, x, y, filled, h, h / 2.0, color, 255);
+            }
+            WidgetKind::Time => push_time(t, fonts, w.size, w.x, text_baseline(w.y, scaled), now, d.h24, rgba(color, 255)),
+            _ => {
+                let (text, _) = widget_text(d, w, v, now);
+                t.items.push(Text { bold: w.bold, size: scaled, cx: w.x, baseline: text_baseline(w.y, scaled), text, color: rgba(color, 255) });
+            }
+        }
+    }
+}
+
+/// Bounding box (x0, y0, x1, y1) of widget `i` of a custom design, for the editor.
+pub fn widget_bounds(d: &CustomDesign, i: usize, v: &StatValues, now: DateTime<Local>) -> Option<[f32; 4]> {
+    let w = d.widgets.get(i)?;
+    let fonts = fonts(d.look.font)?;
+    let scaled = w.size * d.look.text_scale.clamp(60, 140) as f32 / 100.0;
+    let (hw, hh) = match w.kind {
+        WidgetKind::Ring => (w.size + w.thickness / 2.0, w.size + w.thickness / 2.0),
+        WidgetKind::Bar => (w.size / 2.0, w.thickness.max(2.0) / 2.0),
+        WidgetKind::Time => {
+            let (time, suffix) = time_parts(now, d.h24);
+            let (_, _, wt, ws, gap) = time_metrics(fonts, &d.look, w.size, &time, suffix.as_deref());
+            ((wt + gap + ws) / 2.0, scaled * 0.4)
+        }
+        _ => {
+            let (text, _) = widget_text(d, w, v, now);
+            let font = if w.bold { &fonts.bold } else { &fonts.regular };
+            (text_width(font, scaled, &text).max(8.0) / 2.0, scaled * 0.4)
+        }
+    };
+    Some([w.x - hw, w.y - hh, w.x + hw, w.y + hh])
+}
+
+/// The topmost widget at (x, y) on the 480x480 canvas.
+pub fn hit_test(d: &CustomDesign, v: &StatValues, now: DateTime<Local>, x: f32, y: f32) -> Option<usize> {
+    (0..d.widgets.len()).rev().find(|&i| {
+        let w = &d.widgets[i];
+        if w.kind == WidgetKind::Ring {
+            // Only the ring itself, so widgets inside it stay clickable.
+            let dist = ((x - w.x).powi(2) + (y - w.y).powi(2)).sqrt();
+            (dist - w.size).abs() <= w.thickness / 2.0 + 10.0
+        } else {
+            widget_bounds(d, i, v, now).is_some_and(|[x0, y0, x1, y1]| x >= x0 - 8.0 && x <= x1 + 8.0 && y >= y0 - 8.0 && y <= y1 + 8.0)
+        }
+    })
+}
+
 /// Render the overlay. Returns a fully transparent image when stats are disabled.
 pub fn render(cfg: &StatsConfig, values: &StatValues, now: DateTime<Local>) -> RgbaImage {
     let blank = || RgbaImage::new(SCREEN_SIZE, SCREEN_SIZE);
@@ -446,7 +574,12 @@ pub fn render(cfg: &StatsConfig, values: &StatValues, now: DateTime<Local>) -> R
         Design::Gauges => gauges(&mut pm, &cfg.gauges, values, &mut texts),
         Design::Tiles => tiles(&mut pm, &cfg.tiles, values, &mut texts, fonts),
         Design::BigStat => big_stat(&mut pm, &cfg.big_stat, values, &mut texts),
-        Design::Clock => clock(&mut pm, &cfg.clock, values, now, &mut texts),
+        Design::Clock => clock(&mut pm, &cfg.clock, values, now, &mut texts, fonts),
+        Design::Custom(_) => {
+            if let Some(d) = cfg.custom_design() {
+                custom(&mut pm, d, values, now, &mut texts, fonts);
+            }
+        }
     }
 
     // tiny-skia stores premultiplied RGBA; convert to straight alpha for text blending and PNG.
@@ -493,6 +626,39 @@ mod tests {
         }
         cfg.enabled = false;
         assert!(render(&cfg, &StatValues::sample(), now).pixels().all(|p| p[3] == 0));
+    }
+
+    #[test]
+    fn custom_design_renders_and_hit_tests() {
+        let mut cfg = StatsConfig::default();
+        cfg.custom.push(CustomDesign::starter(7, "Mine".into()));
+        cfg.design = Design::Custom(7);
+        let (v, now) = (StatValues::sample(), Local::now());
+        let img = render(&cfg, &v, now);
+        assert!(img.pixels().any(|p| p[3] == 255));
+        if let Ok(dir) = std::env::var("CARGO_TARGET_TMPDIR") {
+            let _ = img.save(std::path::Path::new(&dir).join("design-Custom.png"));
+        }
+        let d = cfg.custom_design().unwrap();
+        // The big value in the middle, not the ring around it.
+        assert_eq!(hit_test(d, &v, now, 240.0, 245.0), Some(2));
+        // The ring at its top edge (radius 200 around the centre).
+        assert_eq!(hit_test(d, &v, now, 240.0, 40.0), Some(0));
+        assert_eq!(hit_test(d, &v, now, 20.0, 470.0), None);
+    }
+
+    #[test]
+    fn twelve_hour_time_has_am_pm() {
+        let (time, suffix) = time_parts(Local::now(), false);
+        assert!(!time.is_empty());
+        assert!(matches!(suffix.as_deref(), Some("AM") | Some("PM")));
+        assert!(time_parts(Local::now(), true).1.is_none());
+        let mut cfg = StatsConfig { design: Design::Clock, ..Default::default() };
+        cfg.clock.h24 = false;
+        let img = render(&cfg, &StatValues::sample(), Local::now());
+        if let Ok(dir) = std::env::var("CARGO_TARGET_TMPDIR") {
+            let _ = img.save(std::path::Path::new(&dir).join("design-Clock12h.png"));
+        }
     }
 
     #[test]

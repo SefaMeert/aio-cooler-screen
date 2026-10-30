@@ -12,9 +12,12 @@ official app.
 
 - **Backgrounds:** PNG, JPG, BMP, WebP images, and MP4/MOV/MKV/WebM/AVI/WMV videos or animated GIFs.
   Crop to fill, fit inside, or stretch to the 480×480 screen.
-- **Four stat designs:** ring gauges, dashboard tiles, one big stat, and clock + stats.
-  Each design has its own font, text size, outline, colours, background dimming and
-  design-specific options.
+- **Four stat designs:** ring gauges, dashboard tiles, one big stat, and clock + stats
+  (24-hour, or 12-hour with AM/PM). Each design has its own font, text size, outline,
+  colours, background dimming and design-specific options.
+- **Your own designs:** start from a template, then add stat values, text, ring gauges,
+  progress bars, time and date. Drag them around on the live preview and set each one's
+  size, colour and stat.
 - **Live sensors out of the box:** CPU temperature (AMD Ryzen and Intel Core) and load, plus
   NVIDIA GPU temperature and load, with nothing extra to install. HWiNFO or LibreHardwareMonitor
   can add more sensors. Pick any sensor for each stat.

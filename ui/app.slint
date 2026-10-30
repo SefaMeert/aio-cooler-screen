@@ -167,6 +167,31 @@ component DesignCard inherits Rectangle {
     ta := TouchArea { clicked => { root.clicked(); } }
 }
 
+component NewDesignCard inherits Rectangle {
+    callback clicked;
+    width: 112px;
+    height: 150px;
+    border-radius: 8px;
+    background: ta.has-hover ? #80808014 : transparent;
+    border-width: 1px;
+    border-color: ta.has-hover ? Palette.accent-background : #80808050;
+    VerticalLayout {
+        alignment: center;
+        spacing: 10px;
+        Glyph {
+            text: "\u{E710}";
+            font-size: 28px;
+        }
+        Text {
+            text: "New design";
+            horizontal-alignment: center;
+            font-size: 12px;
+            color: Palette.foreground;
+        }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
 component PageTitle inherits Text {
     font-size: 28px;
     font-weight: 600;
@@ -262,6 +287,31 @@ export component AppWindow inherits Window {
     in-out property <bool> c-date;
     in-out property <int> c-stats;
 
+    // Custom design editor
+    in-out property <string> custom-name;
+    in-out property <bool> cu-h24;
+    in property <[string]> widget-kinds;
+    in-out property <int> add-kind;
+    in property <[string]> widget-names;
+    in property <int> selected-widget: -1;
+    in property <string> w-kind-name;
+    in property <bool> w-uses-stat;
+    in property <bool> w-is-text;
+    in property <bool> w-is-label;
+    in property <bool> w-has-thickness;
+    in property <string> w-size-label;
+    in property <float> w-size-min: 8;
+    in property <float> w-size-max: 480;
+    in-out property <int> w-stat;
+    in-out property <string> w-text;
+    in-out property <float> w-size;
+    in-out property <float> w-thickness;
+    in-out property <float> w-x;
+    in-out property <float> w-y;
+    in-out property <bool> w-bold;
+    in-out property <bool> w-auto;
+    in-out property <int> w-color-index;
+
     // Live stats page
     in property <[StatRow]> stat-rows;
 
@@ -281,6 +331,17 @@ export component AppWindow inherits Window {
     in property <float> ffmpeg-progress;
 
     callback design-selected(int);
+    callback new-design();
+    callback duplicate-design();
+    callback delete-design();
+    callback add-widget(int);
+    callback widget-selected(int);
+    callback widget-changed();
+    callback move-widget(int);
+    callback delete-widget();
+    callback preview-pressed(float, float);
+    callback preview-dragged(float, float);
+    callback preview-released();
     callback browse();
     callback apply-media();
     callback settings-changed();
@@ -387,14 +448,22 @@ export component AppWindow inherits Window {
                         Card {
                             title: "Design";
                             subtitle: "Pick how live stats are drawn on top of your background. Each design keeps its own settings.";
-                            HorizontalLayout {
-                                spacing: 8px;
-                                alignment: start;
-                                for thumb[i] in root.design-thumbs: DesignCard {
-                                    thumb: thumb;
-                                    name: root.design-names[i];
-                                    selected: root.design == i && root.stats-enabled;
-                                    clicked => { root.design-selected(i); }
+                            gallery-scroll := ScrollView {
+                                height: 168px;
+                                content-width: gallery.preferred-width;
+                                content-height: 160px;
+                                gallery := HorizontalLayout {
+                                    spacing: 8px;
+                                    alignment: start;
+                                    for thumb[i] in root.design-thumbs: DesignCard {
+                                        thumb: thumb;
+                                        name: root.design-names[i];
+                                        selected: root.design == i && root.stats-enabled;
+                                        clicked => { root.design-selected(i); }
+                                    }
+                                    NewDesignCard {
+                                        clicked => { root.new-design(); }
+                                    }
                                 }
                             }
                             SettingRow {
@@ -408,7 +477,195 @@ export component AppWindow inherits Window {
                         }
 
                         Card {
-                            title: root.design-names[root.design] + " options";
+                            title: root.design >= 4 ? "Edit " + root.design-names[root.design] : root.design-names[root.design] + " options";
+                            subtitle: root.design >= 4 ? "Add widgets, pick one to change it, and drag widgets in the preview to move them." : "";
+
+                            if root.design >= 4: VerticalLayout {
+                                spacing: 12px;
+                                SettingRow {
+                                    label: "Name";
+                                    LineEdit {
+                                        width: 240px;
+                                        text <=> root.custom-name;
+                                        edited => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "24-hour time";
+                                    hint: "Off shows AM/PM in time widgets.";
+                                    Switch {
+                                        checked <=> root.cu-h24;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    ComboBox {
+                                        width: 170px;
+                                        model: root.widget-kinds;
+                                        current-index <=> root.add-kind;
+                                    }
+                                    Button {
+                                        text: "Add widget";
+                                        clicked => { root.add-widget(root.add-kind); }
+                                    }
+                                    Rectangle { horizontal-stretch: 1; }
+                                    Button {
+                                        text: "Duplicate design";
+                                        clicked => { root.duplicate-design(); }
+                                    }
+                                    Button {
+                                        text: "Delete design";
+                                        clicked => { root.delete-design(); }
+                                    }
+                                }
+                                // Widget list
+                                Rectangle {
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #80808030;
+                                    VerticalLayout {
+                                        padding: 4px;
+                                        for name[i] in root.widget-names: Rectangle {
+                                            height: 32px;
+                                            border-radius: 4px;
+                                            background: root.selected-widget == i ? #8080802a : wta.has-hover ? #80808014 : transparent;
+                                            HorizontalLayout {
+                                                padding-left: 10px;
+                                                spacing: 8px;
+                                                Rectangle {
+                                                    width: 3px;
+                                                    height: 16px;
+                                                    y: (parent.height - self.height) / 2;
+                                                    border-radius: 1.5px;
+                                                    background: root.selected-widget == i ? Palette.accent-background : transparent;
+                                                }
+                                                Text {
+                                                    text: name;
+                                                    font-size: 13px;
+                                                    vertical-alignment: center;
+                                                    color: Palette.foreground;
+                                                }
+                                            }
+                                            wta := TouchArea { clicked => { root.widget-selected(i); } }
+                                        }
+                                        if root.widget-names.length == 0: Text {
+                                            text: "No widgets yet. Add one above.";
+                                            opacity: 0.6;
+                                            font-size: 12px;
+                                            color: Palette.foreground;
+                                        }
+                                    }
+                                }
+                                if root.selected-widget >= 0: VerticalLayout {
+                                    spacing: 12px;
+                                    Text {
+                                        text: root.w-kind-name;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        color: Palette.foreground;
+                                    }
+                                    if root.w-uses-stat: SettingRow {
+                                        label: "Stat";
+                                        ComboBox {
+                                            width: 200px;
+                                            model: ["CPU temperature", "CPU load", "GPU temperature", "GPU load"];
+                                            current-index <=> root.w-stat;
+                                            selected => { root.widget-changed(); }
+                                        }
+                                    }
+                                    if root.w-is-label: SettingRow {
+                                        label: "Text";
+                                        LineEdit {
+                                            width: 240px;
+                                            text <=> root.w-text;
+                                            edited => { root.widget-changed(); }
+                                        }
+                                    }
+                                    SettingRow {
+                                        label: root.w-size-label;
+                                        hint: Math.round(root.w-size) + " px";
+                                        Slider {
+                                            width: 220px;
+                                            minimum: root.w-size-min;
+                                            maximum: root.w-size-max;
+                                            value <=> root.w-size;
+                                            changed => { root.widget-changed(); }
+                                        }
+                                    }
+                                    if root.w-has-thickness: SettingRow {
+                                        label: "Thickness";
+                                        hint: Math.round(root.w-thickness) + " px";
+                                        Slider {
+                                            width: 220px;
+                                            minimum: 2;
+                                            maximum: 40;
+                                            value <=> root.w-thickness;
+                                            changed => { root.widget-changed(); }
+                                        }
+                                    }
+                                    SettingRow {
+                                        label: "Position";
+                                        hint: "x " + Math.round(root.w-x) + ", y " + Math.round(root.w-y);
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Slider {
+                                                width: 140px;
+                                                minimum: 0;
+                                                maximum: 480;
+                                                value <=> root.w-x;
+                                                changed => { root.widget-changed(); }
+                                            }
+                                            Slider {
+                                                width: 140px;
+                                                minimum: 0;
+                                                maximum: 480;
+                                                value <=> root.w-y;
+                                                changed => { root.widget-changed(); }
+                                            }
+                                        }
+                                    }
+                                    if root.w-is-text: SettingRow {
+                                        label: "Bold";
+                                        Switch {
+                                            checked <=> root.w-bold;
+                                            toggled => { root.widget-changed(); }
+                                        }
+                                    }
+                                    SettingRow {
+                                        label: "Use design colours";
+                                        hint: "Text colour for text, temperature or accent colour for gauges.";
+                                        Switch {
+                                            checked <=> root.w-auto;
+                                            toggled => { root.widget-changed(); }
+                                        }
+                                    }
+                                    if !root.w-auto: SettingRow {
+                                        label: "Colour";
+                                        Swatches {
+                                            colors: root.swatches;
+                                            selected <=> root.w-color-index;
+                                            picked => { root.widget-changed(); }
+                                        }
+                                    }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+                                        Button {
+                                            text: "Bring forward";
+                                            clicked => { root.move-widget(1); }
+                                        }
+                                        Button {
+                                            text: "Send backward";
+                                            clicked => { root.move-widget(-1); }
+                                        }
+                                        Button {
+                                            text: "Delete widget";
+                                            clicked => { root.delete-widget(); }
+                                        }
+                                    }
+                                }
+                            }
 
                             if root.design == 0: VerticalLayout {
                                 spacing: 12px;
@@ -725,7 +982,7 @@ export component AppWindow inherits Window {
                     spacing: 16px;
                     Card {
                         title: "Preview";
-                        subtitle: root.preview-live ? "Live values from the service." : "Sample values until sensors report.";
+                        subtitle: root.design >= 4 ? "Click a widget to select it, drag to move it." : root.preview-live ? "Live values from the service." : "Sample values until sensors report.";
                         HorizontalLayout {
                             alignment: center;
                             Rectangle {
@@ -738,6 +995,24 @@ export component AppWindow inherits Window {
                                     source: root.preview;
                                     width: 280px;
                                     height: 280px;
+                                }
+                                // Custom designs: click a widget to select it, drag to move it.
+                                TouchArea {
+                                    enabled: root.design >= 4;
+                                    mouse-cursor: root.design >= 4 ? MouseCursor.move : MouseCursor.default;
+                                    pointer-event(ev) => {
+                                        if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left {
+                                            root.preview-pressed(self.mouse-x / 1px, self.mouse-y / 1px);
+                                        }
+                                        if ev.kind == PointerEventKind.up {
+                                            root.preview-released();
+                                        }
+                                    }
+                                    moved => {
+                                        if self.pressed {
+                                            root.preview-dragged(self.mouse-x / 1px, self.mouse-y / 1px);
+                                        }
+                                    }
                                 }
                             }
                         }

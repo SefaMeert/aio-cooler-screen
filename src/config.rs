@@ -37,16 +37,19 @@ pub enum Position {
     Bottom,
 }
 
-/// The built-in screen designs drawn over the background.
+/// The screen designs drawn over the background: four built-in ones and the user's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Design {
     Gauges,
     Tiles,
     BigStat,
     Clock,
+    /// A user-made design, by `CustomDesign::id`.
+    Custom(u64),
 }
 
 impl Design {
+    /// The built-in designs, in gallery order.
     pub const ALL: [Design; 4] = [Design::Gauges, Design::Tiles, Design::BigStat, Design::Clock];
 
     pub fn name(self) -> &'static str {
@@ -55,11 +58,130 @@ impl Design {
             Design::Tiles => "Dashboard tiles",
             Design::BigStat => "Big single stat",
             Design::Clock => "Clock + stats",
+            Design::Custom(_) => "Custom",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WidgetKind {
+    Value,
+    Label,
+    Ring,
+    Bar,
+    Time,
+    Date,
+}
+
+impl WidgetKind {
+    pub const ALL: [WidgetKind; 6] =
+        [WidgetKind::Value, WidgetKind::Label, WidgetKind::Ring, WidgetKind::Bar, WidgetKind::Time, WidgetKind::Date];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            WidgetKind::Value => "Stat value",
+            WidgetKind::Label => "Text",
+            WidgetKind::Ring => "Ring gauge",
+            WidgetKind::Bar => "Progress bar",
+            WidgetKind::Time => "Time",
+            WidgetKind::Date => "Date",
         }
     }
 
-    pub fn index(self) -> usize {
-        Design::ALL.iter().position(|d| *d == self).unwrap_or(0)
+    pub fn uses_stat(self) -> bool {
+        matches!(self, WidgetKind::Value | WidgetKind::Ring | WidgetKind::Bar)
+    }
+
+    pub fn is_text(self) -> bool {
+        matches!(self, WidgetKind::Value | WidgetKind::Label | WidgetKind::Time | WidgetKind::Date)
+    }
+}
+
+/// One element of a custom design. Coordinates are the widget's centre on the 480x480 screen.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Widget {
+    pub kind: WidgetKind,
+    pub x: f32,
+    pub y: f32,
+    /// Text size, ring radius or bar width, in pixels.
+    pub size: f32,
+    /// Ring or bar thickness, in pixels.
+    pub thickness: f32,
+    pub stat: Stat,
+    /// Text for label widgets.
+    pub text: String,
+    pub color: [u8; 3],
+    /// Use the design's colours (text colour, or temperature/accent colour for gauges)
+    /// instead of `color`.
+    pub auto_color: bool,
+    pub bold: bool,
+}
+
+impl Default for Widget {
+    fn default() -> Self {
+        Widget {
+            kind: WidgetKind::Value,
+            x: 240.0,
+            y: 240.0,
+            size: 90.0,
+            thickness: 14.0,
+            stat: Stat::CpuTemp,
+            text: "CPU".into(),
+            color: [255, 255, 255],
+            auto_color: true,
+            bold: true,
+        }
+    }
+}
+
+impl Widget {
+    /// A sensible new widget of `kind`, placed near the centre.
+    pub fn new(kind: WidgetKind) -> Self {
+        let base = Widget { kind, ..Widget::default() };
+        match kind {
+            WidgetKind::Value => base,
+            WidgetKind::Label => Widget { size: 34.0, bold: false, text: "CPU".into(), ..base },
+            WidgetKind::Ring => Widget { size: 200.0, thickness: 18.0, ..base },
+            WidgetKind::Bar => Widget { y: 330.0, size: 220.0, thickness: 12.0, ..base },
+            WidgetKind::Time => Widget { size: 110.0, ..base },
+            WidgetKind::Date => Widget { y: 300.0, size: 32.0, bold: false, ..base },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomDesign {
+    pub id: u64,
+    pub name: String,
+    pub look: Look,
+    /// 24-hour time for time widgets (12-hour shows AM/PM).
+    pub h24: bool,
+    pub widgets: Vec<Widget>,
+}
+
+impl Default for CustomDesign {
+    fn default() -> Self {
+        CustomDesign { id: 0, name: "My design".into(), look: Look::default(), h24: true, widgets: Vec::new() }
+    }
+}
+
+impl CustomDesign {
+    /// A new design with a starter layout: CPU temperature ring, label, value and load.
+    pub fn starter(id: u64, name: String) -> Self {
+        let w = Widget::new;
+        CustomDesign {
+            id,
+            name,
+            widgets: vec![
+                w(WidgetKind::Ring),
+                Widget { y: 170.0, ..w(WidgetKind::Label) },
+                Widget { y: 245.0, size: 110.0, ..w(WidgetKind::Value) },
+                Widget { y: 320.0, size: 34.0, bold: false, stat: Stat::CpuLoad, ..w(WidgetKind::Value) },
+            ],
+            ..CustomDesign::default()
+        }
     }
 }
 
@@ -72,6 +194,7 @@ pub struct StatsConfig {
     pub tiles: TilesOptions,
     pub big_stat: BigStatOptions,
     pub clock: ClockOptions,
+    pub custom: Vec<CustomDesign>,
     /// Per-stat reading key chosen by the user; missing means automatic.
     pub sources: BTreeMap<String, String>,
 }
@@ -85,6 +208,7 @@ impl Default for StatsConfig {
             tiles: TilesOptions::default(),
             big_stat: BigStatOptions::default(),
             clock: ClockOptions::default(),
+            custom: Vec::new(),
             sources: BTreeMap::new(),
         }
     }
@@ -231,6 +355,21 @@ impl StatValues {
 }
 
 impl StatsConfig {
+    /// The selected custom design, if a custom design is selected and still exists.
+    pub fn custom_design(&self) -> Option<&CustomDesign> {
+        match self.design {
+            Design::Custom(id) => self.custom.iter().find(|d| d.id == id),
+            _ => None,
+        }
+    }
+
+    pub fn custom_design_mut(&mut self) -> Option<&mut CustomDesign> {
+        match self.design {
+            Design::Custom(id) => self.custom.iter_mut().find(|d| d.id == id),
+            _ => None,
+        }
+    }
+
     /// The look of the selected design.
     pub fn look(&self) -> &Look {
         match self.design {
@@ -238,6 +377,7 @@ impl StatsConfig {
             Design::Tiles => &self.tiles.look,
             Design::BigStat => &self.big_stat.look,
             Design::Clock => &self.clock.look,
+            Design::Custom(_) => self.custom_design().map_or(&self.gauges.look, |d| &d.look),
         }
     }
 
@@ -247,6 +387,10 @@ impl StatsConfig {
             Design::Tiles => &mut self.tiles.look,
             Design::BigStat => &mut self.big_stat.look,
             Design::Clock => &mut self.clock.look,
+            Design::Custom(id) => match self.custom.iter().position(|d| d.id == id) {
+                Some(i) => &mut self.custom[i].look,
+                None => &mut self.gauges.look,
+            },
         }
     }
 
