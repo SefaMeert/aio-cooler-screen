@@ -499,11 +499,10 @@ export component AppWindow inherits Window {
                 padding-right: 24px;
                 spacing: 24px;
 
-                ScrollView {
+                // ---- Background page ----
+                if root.page == 0: ScrollView {
                     horizontal-stretch: 1;
-
-                    // ---- Background page ----
-                    if root.page == 0: VerticalLayout {
+                    VerticalLayout {
                         spacing: 16px;
                         padding-right: 12px;
                         alignment: start;
@@ -595,9 +594,12 @@ export component AppWindow inherits Window {
                             ok: root.message-ok;
                         }
                     }
+                }
 
-                    // ---- Design page ----
-                    if root.page == 1: VerticalLayout {
+                // ---- Design page ----
+                if root.page == 1: ScrollView {
+                    horizontal-stretch: 1;
+                    VerticalLayout {
                         spacing: 16px;
                         padding-right: 12px;
                         alignment: start;
