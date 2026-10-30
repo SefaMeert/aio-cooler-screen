@@ -1,0 +1,30 @@
+[package]
+name = "aio-screen"
+version = "1.1.0"
+edition = "2021"
+description = "Backgrounds and live stats for the Monster AIO Cooler LCD (USB HID 1D6B:0130)"
+
+[dependencies]
+hidapi = "2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp", "ico"] }
+slint = { version = "1", features = ["renderer-skia"] }
+tiny-skia = "0.11"
+chrono = "0.4"
+rfd = "0.15"
+windows-service = "0.8"
+libloading = "0.8"
+ab_glyph = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Memory"] }
+ureq = { version = "3", features = ["json"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+
+[build-dependencies]
+slint-build = "1"
+winresource = "0.1"
+
+[profile.release]
+strip = true
+lto = true

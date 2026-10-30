@@ -1,0 +1,947 @@
+import { Button, ComboBox, Switch, Slider, Spinner, ScrollView, Palette, AboutSlint, LineEdit, CheckBox, ProgressIndicator } from "std-widgets.slint";
+
+export struct StatRow {
+    title: string,
+    choices: [string],
+    index: int,
+    value: string,
+}
+
+component Glyph inherits Text {
+    font-family: "Segoe Fluent Icons";
+    font-size: 16px;
+    vertical-alignment: center;
+    horizontal-alignment: center;
+    color: Palette.foreground;
+}
+
+component NavItem inherits Rectangle {
+    in property <string> glyph;
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked;
+    height: 40px;
+    border-radius: 6px;
+    background: root.selected ? #8080802a : ta.has-hover ? #80808018 : transparent;
+    animate background { duration: 120ms; }
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: root.selected ? 18px : 0px;
+        border-radius: 1.5px;
+        background: Palette.accent-background;
+        animate height { duration: 150ms; }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        spacing: 14px;
+        Glyph { text: root.glyph; width: 20px; }
+        Text {
+            text: root.text;
+            font-size: 14px;
+            vertical-alignment: center;
+            color: Palette.foreground;
+        }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+component Card inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    background: Palette.control-background;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #80808030;
+    VerticalLayout {
+        padding: 18px;
+        spacing: 12px;
+        if root.title != "": VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: root.title;
+                font-size: 15px;
+                font-weight: 600;
+                color: Palette.foreground;
+            }
+            if root.subtitle != "": Text {
+                text: root.subtitle;
+                font-size: 12px;
+                color: Palette.foreground;
+                opacity: 0.7;
+                wrap: word-wrap;
+            }
+        }
+        @children
+    }
+}
+
+component SettingRow inherits Rectangle {
+    in property <string> label;
+    in property <string> hint;
+    min-height: 36px;
+    HorizontalLayout {
+        spacing: 16px;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: root.label;
+                font-size: 13px;
+                color: Palette.foreground;
+            }
+            if root.hint != "": Text {
+                text: root.hint;
+                font-size: 11px;
+                color: Palette.foreground;
+                opacity: 0.65;
+                wrap: word-wrap;
+            }
+        }
+        @children
+    }
+}
+
+component Swatches inherits Rectangle {
+    in property <[color]> colors;
+    in-out property <int> selected;
+    callback picked(int);
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: end;
+        for c[i] in root.colors: Rectangle {
+            width: 26px;
+            height: 26px;
+            border-radius: 13px;
+            background: c;
+            border-width: root.selected == i ? 3px : 1px;
+            border-color: root.selected == i ? Palette.accent-background : #80808070;
+            TouchArea {
+                clicked => {
+                    root.selected = i;
+                    root.picked(i);
+                }
+            }
+        }
+    }
+}
+
+component DesignCard inherits Rectangle {
+    in property <image> thumb;
+    in property <string> name;
+    in property <bool> selected;
+    callback clicked;
+    width: 112px;
+    height: 150px;
+    border-radius: 8px;
+    background: root.selected ? #8080801f : ta.has-hover ? #80808014 : transparent;
+    border-width: root.selected ? 2px : 1px;
+    border-color: root.selected ? Palette.accent-background : #80808030;
+    animate background { duration: 120ms; }
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 92px;
+                height: 92px;
+                border-radius: 46px;
+                clip: true;
+                background: #000000;
+                Image {
+                    source: root.thumb;
+                    width: 92px;
+                    height: 92px;
+                }
+            }
+        }
+        Text {
+            text: root.name;
+            horizontal-alignment: center;
+            font-size: 12px;
+            color: Palette.foreground;
+            wrap: word-wrap;
+        }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+component PageTitle inherits Text {
+    font-size: 28px;
+    font-weight: 600;
+    color: Palette.foreground;
+}
+
+component InfoBar inherits Rectangle {
+    in property <string> text;
+    in property <bool> ok;
+    in property <bool> warning;
+    border-radius: 6px;
+    background: root.ok ? #22c55e26 : root.warning ? #f59e0b26 : #ef444426;
+    border-width: 1px;
+    border-color: root.ok ? #22c55e66 : root.warning ? #f59e0b66 : #ef444466;
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 10px;
+        Glyph {
+            text: root.ok ? "\u{E73E}" : "\u{E7BA}";
+            color: root.ok ? #22c55e : root.warning ? #f59e0b : #ef4444;
+            width: 18px;
+        }
+        Text {
+            text: root.text;
+            wrap: word-wrap;
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        @children
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "AIO Cooler Screen";
+    icon: root.app-icon;
+    preferred-width: 1260px;
+    preferred-height: 800px;
+    min-width: 1160px;
+    min-height: 640px;
+    background: Palette.background;
+    default-font-family: "Segoe UI Variable Text";
+
+    in property <image> app-icon;
+    in property <string> version;
+    in-out property <int> page: 0;
+
+    // Screen page
+    in property <image> preview;
+    in property <bool> preview-live;
+    in property <[image]> design-thumbs;
+    in property <[string]> design-names;
+    in property <int> design;
+    in-out property <bool> stats-enabled;
+    in property <string> media-name;
+    in-out property <string> source-path;
+    in property <bool> source-is-video;
+    in-out property <int> fit;
+    in property <bool> busy;
+    in property <string> busy-text;
+    in property <string> message;
+    in property <bool> message-ok;
+    in property <[color]> swatches;
+
+    // Look of the selected design
+    in-out property <int> text-color-index;
+    in-out property <int> accent-index;
+    in-out property <bool> temp-colors;
+    in-out property <float> dim;
+    in-out property <int> font-index;
+    in-out property <float> text-scale;
+    in-out property <bool> outline;
+
+    // Design options
+    in-out property <bool> g-load-rings;
+    in-out property <bool> g-labels;
+    in-out property <float> g-thickness;
+    in-out property <bool> t-cpu-temp;
+    in-out property <bool> t-cpu-load;
+    in-out property <bool> t-gpu-temp;
+    in-out property <bool> t-gpu-load;
+    in-out property <int> t-columns;
+    in-out property <int> t-position;
+    in-out property <bool> t-panel;
+    in-out property <float> t-panel-opacity;
+    in-out property <int> b-stat;
+    in-out property <bool> b-ring;
+    in-out property <bool> b-ticks;
+    in-out property <bool> b-secondary;
+    in-out property <bool> c-h24;
+    in-out property <bool> c-seconds;
+    in-out property <bool> c-date;
+    in-out property <int> c-stats;
+
+    // Live stats page
+    in property <[StatRow]> stat-rows;
+
+    // Device page
+    in property <string> service-state;
+    in property <bool> service-running;
+    in property <bool> cooler-ok;
+    in property <string> cooler-state;
+    in property <string> sensors-state;
+    in property <bool> sensors-ok;
+    in property <string> last-error;
+    in property <bool> official-running;
+    in-out property <string> lhm-port;
+    in property <bool> ffmpeg-ok;
+    in property <string> ffmpeg-state;
+    in property <bool> ffmpeg-busy;
+    in property <float> ffmpeg-progress;
+
+    callback design-selected(int);
+    callback browse();
+    callback apply-media();
+    callback settings-changed();
+    callback source-selected(int, int);
+    callback repair-service();
+    callback open-data-folder();
+    callback open-log();
+    callback download-ffmpeg();
+    callback lhm-port-edited(string);
+    callback open-url(string);
+
+    HorizontalLayout {
+        // Sidebar
+        Rectangle {
+            width: 236px;
+            background: Palette.alternate-background;
+            VerticalLayout {
+                padding: 14px;
+                spacing: 4px;
+                HorizontalLayout {
+                    padding-top: 8px;
+                    padding-bottom: 20px;
+                    padding-left: 6px;
+                    spacing: 10px;
+                    Image {
+                        source: root.app-icon;
+                        width: 30px;
+                        height: 30px;
+                    }
+                    Text {
+                        text: "AIO Cooler Screen";
+                        font-size: 15px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        color: Palette.foreground;
+                    }
+                }
+                NavItem {
+                    glyph: "\u{E7F4}";
+                    text: "Screen";
+                    selected: root.page == 0;
+                    clicked => { root.page = 0; }
+                }
+                NavItem {
+                    glyph: "\u{E9D9}";
+                    text: "Live stats";
+                    selected: root.page == 1;
+                    clicked => { root.page = 1; }
+                }
+                NavItem {
+                    glyph: "\u{E772}";
+                    text: "Device";
+                    selected: root.page == 2;
+                    clicked => { root.page = 2; }
+                }
+                NavItem {
+                    glyph: "\u{E946}";
+                    text: "About";
+                    selected: root.page == 3;
+                    clicked => { root.page = 3; }
+                }
+                Rectangle { vertical-stretch: 1; }
+                HorizontalLayout {
+                    padding: 10px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 5px;
+                            background: root.cooler-ok ? #22c55e : #f59e0b;
+                        }
+                    }
+                    Text {
+                        text: root.cooler-state;
+                        font-size: 12px;
+                        color: Palette.foreground;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        // Content
+        Rectangle {
+            horizontal-stretch: 1;
+
+            if root.page == 0: HorizontalLayout {
+                width: parent.width;
+                height: parent.height;
+                padding: 28px;
+                spacing: 24px;
+                ScrollView {
+                    horizontal-stretch: 1;
+                    VerticalLayout {
+                        spacing: 16px;
+                        padding-right: 12px;
+                        alignment: start;
+                        PageTitle { text: "Screen"; }
+
+                        Card {
+                            title: "Design";
+                            subtitle: "Pick how live stats are drawn on top of your background. Each design keeps its own settings.";
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                for thumb[i] in root.design-thumbs: DesignCard {
+                                    thumb: thumb;
+                                    name: root.design-names[i];
+                                    selected: root.design == i && root.stats-enabled;
+                                    clicked => { root.design-selected(i); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Show live stats";
+                                hint: "Turn off to show only the background.";
+                                Switch {
+                                    checked <=> root.stats-enabled;
+                                    toggled => { root.settings-changed(); }
+                                }
+                            }
+                        }
+
+                        Card {
+                            title: "Background";
+                            subtitle: "Current: " + root.media-name;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    border-radius: 4px;
+                                    background: #80808014;
+                                    border-width: 1px;
+                                    border-color: #80808030;
+                                    min-height: 32px;
+                                    Text {
+                                        x: 10px;
+                                        width: parent.width - 20px;
+                                        text: root.source-path == "" ? "Choose an image or video…" : root.source-path;
+                                        opacity: root.source-path == "" ? 0.6 : 1;
+                                        color: Palette.foreground;
+                                        font-size: 13px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                                Button {
+                                    text: "Browse…";
+                                    clicked => { root.browse(); }
+                                }
+                            }
+                            if root.source-is-video && !root.ffmpeg-ok: InfoBar {
+                                warning: true;
+                                text: root.ffmpeg-busy ? "Downloading ffmpeg…" : "Videos need ffmpeg, which isn't installed yet.";
+                                if !root.ffmpeg-busy: Button {
+                                    text: "Download ffmpeg";
+                                    clicked => { root.download-ffmpeg(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Fit";
+                                ComboBox {
+                                    width: 220px;
+                                    model: ["Crop to fill", "Fit inside (black bars)", "Stretch"];
+                                    current-index <=> root.fit;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                alignment: end;
+                                if root.busy: Spinner {
+                                    width: 22px;
+                                    height: 22px;
+                                    indeterminate: true;
+                                }
+                                if root.busy: Text {
+                                    text: root.busy-text;
+                                    vertical-alignment: center;
+                                    color: Palette.foreground;
+                                }
+                                Button {
+                                    text: "Apply to screen";
+                                    primary: true;
+                                    enabled: !root.busy && root.source-path != "" && (root.ffmpeg-ok || !root.source-is-video);
+                                    clicked => { root.apply-media(); }
+                                }
+                            }
+                        }
+
+                        Card {
+                            title: "Appearance";
+                            subtitle: "Applies to the " + root.design-names[root.design] + " design.";
+                            SettingRow {
+                                label: "Font";
+                                ComboBox {
+                                    width: 200px;
+                                    model: ["Segoe UI", "Bahnschrift", "Arial", "Consolas"];
+                                    current-index <=> root.font-index;
+                                    selected => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text size";
+                                hint: Math.round(root.text-scale) + "%";
+                                Slider {
+                                    width: 220px;
+                                    minimum: 70;
+                                    maximum: 130;
+                                    value <=> root.text-scale;
+                                    released => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text outline";
+                                hint: "A dark edge around text so it reads well on bright backgrounds.";
+                                Switch {
+                                    checked <=> root.outline;
+                                    toggled => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Text colour";
+                                Swatches {
+                                    colors: root.swatches;
+                                    selected <=> root.text-color-index;
+                                    picked => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Accent colour";
+                                hint: "Rings, bars and highlights.";
+                                Swatches {
+                                    colors: root.swatches;
+                                    selected <=> root.accent-index;
+                                    picked => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Colour temperatures";
+                                hint: "Blue when cool through green and amber to red when hot.";
+                                Switch {
+                                    checked <=> root.temp-colors;
+                                    toggled => { root.settings-changed(); }
+                                }
+                            }
+                            SettingRow {
+                                label: "Darken background";
+                                hint: Math.round(root.dim) + "%";
+                                Slider {
+                                    width: 220px;
+                                    minimum: 0;
+                                    maximum: 80;
+                                    value <=> root.dim;
+                                    released => { root.settings-changed(); }
+                                }
+                            }
+                        }
+
+                        Card {
+                            title: root.design-names[root.design] + " options";
+
+                            if root.design == 0: VerticalLayout {
+                                spacing: 12px;
+                                SettingRow {
+                                    label: "Load rings";
+                                    hint: "Thin inner rings for CPU and GPU load.";
+                                    Switch {
+                                        checked <=> root.g-load-rings;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Labels";
+                                    hint: "CPU / GPU titles and load text.";
+                                    Switch {
+                                        checked <=> root.g-labels;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Ring thickness";
+                                    hint: Math.round(root.g-thickness) + " px";
+                                    Slider {
+                                        width: 220px;
+                                        minimum: 8;
+                                        maximum: 36;
+                                        value <=> root.g-thickness;
+                                        released => { root.settings-changed(); }
+                                    }
+                                }
+                            }
+
+                            if root.design == 1: VerticalLayout {
+                                spacing: 12px;
+                                SettingRow {
+                                    label: "Tiles";
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        CheckBox {
+                                            text: "CPU temp";
+                                            checked <=> root.t-cpu-temp;
+                                            toggled => { root.settings-changed(); }
+                                        }
+                                        CheckBox {
+                                            text: "CPU load";
+                                            checked <=> root.t-cpu-load;
+                                            toggled => { root.settings-changed(); }
+                                        }
+                                        CheckBox {
+                                            text: "GPU temp";
+                                            checked <=> root.t-gpu-temp;
+                                            toggled => { root.settings-changed(); }
+                                        }
+                                        CheckBox {
+                                            text: "GPU load";
+                                            checked <=> root.t-gpu-load;
+                                            toggled => { root.settings-changed(); }
+                                        }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Layout";
+                                    ComboBox {
+                                        width: 160px;
+                                        model: ["One column", "Two columns"];
+                                        current-index <=> root.t-columns;
+                                        selected => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Position";
+                                    ComboBox {
+                                        width: 160px;
+                                        model: ["Top", "Center", "Bottom"];
+                                        current-index <=> root.t-position;
+                                        selected => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Panels behind tiles";
+                                    Switch {
+                                        checked <=> root.t-panel;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                if root.t-panel: SettingRow {
+                                    label: "Panel opacity";
+                                    hint: Math.round(root.t-panel-opacity) + "%";
+                                    Slider {
+                                        width: 220px;
+                                        minimum: 10;
+                                        maximum: 100;
+                                        value <=> root.t-panel-opacity;
+                                        released => { root.settings-changed(); }
+                                    }
+                                }
+                            }
+
+                            if root.design == 2: VerticalLayout {
+                                spacing: 12px;
+                                SettingRow {
+                                    label: "Stat to show";
+                                    ComboBox {
+                                        width: 200px;
+                                        model: ["CPU temperature", "CPU load", "GPU temperature", "GPU load"];
+                                        current-index <=> root.b-stat;
+                                        selected => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Progress ring";
+                                    Switch {
+                                        checked <=> root.b-ring;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Tick marks";
+                                    Switch {
+                                        checked <=> root.b-ticks;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Second line";
+                                    hint: "Shows the related load or temperature underneath.";
+                                    Switch {
+                                        checked <=> root.b-secondary;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                            }
+
+                            if root.design == 3: VerticalLayout {
+                                spacing: 12px;
+                                SettingRow {
+                                    label: "24-hour clock";
+                                    Switch {
+                                        checked <=> root.c-h24;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Seconds ring";
+                                    Switch {
+                                        checked <=> root.c-seconds;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Date";
+                                    Switch {
+                                        checked <=> root.c-date;
+                                        toggled => { root.settings-changed(); }
+                                    }
+                                }
+                                SettingRow {
+                                    label: "Stats under the clock";
+                                    ComboBox {
+                                        width: 200px;
+                                        model: ["Temperatures", "Loads", "None"];
+                                        current-index <=> root.c-stats;
+                                        selected => { root.settings-changed(); }
+                                    }
+                                }
+                            }
+                        }
+
+                        if root.message != "": InfoBar {
+                            text: root.message;
+                            ok: root.message-ok;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    width: 320px;
+                    alignment: start;
+                    spacing: 16px;
+                    Card {
+                        title: "Preview";
+                        subtitle: root.preview-live ? "Live values from the service." : "Sample values until sensors report.";
+                        HorizontalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 280px;
+                                height: 280px;
+                                border-radius: 140px;
+                                clip: true;
+                                background: #000000;
+                                Image {
+                                    source: root.preview;
+                                    width: 280px;
+                                    height: 280px;
+                                }
+                            }
+                        }
+                    }
+                    if !root.sensors-ok: InfoBar {
+                        warning: true;
+                        text: "No sensor source found. Run HWiNFO or LibreHardwareMonitor; see the Device page.";
+                    }
+                    if root.official-running: InfoBar {
+                        warning: true;
+                        text: "The official Monster app is running. Close it so it doesn't fight over the screen.";
+                    }
+                }
+            }
+
+            if root.page == 1: ScrollView {
+                width: parent.width;
+                height: parent.height;
+                VerticalLayout {
+                    padding: 28px;
+                    spacing: 16px;
+                    alignment: start;
+                    PageTitle { text: "Live stats"; }
+                    Text {
+                        text: "Choose which sensor feeds each stat. Auto picks the CPU package and your discrete GPU.";
+                        wrap: word-wrap;
+                        color: Palette.foreground;
+                        opacity: 0.75;
+                        font-size: 13px;
+                    }
+                    for row[i] in root.stat-rows: Card {
+                        HorizontalLayout {
+                            spacing: 16px;
+                            Text {
+                                width: 150px;
+                                text: row.title;
+                                font-size: 14px;
+                                vertical-alignment: center;
+                                color: Palette.foreground;
+                            }
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: row.choices;
+                                current-index: row.index;
+                                selected => { root.source-selected(i, self.current-index); }
+                            }
+                            Text {
+                                width: 70px;
+                                text: row.value;
+                                font-size: 20px;
+                                font-weight: 600;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                                color: Palette.foreground;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.page == 2: ScrollView {
+                width: parent.width;
+                height: parent.height;
+                VerticalLayout {
+                    padding: 28px;
+                    spacing: 16px;
+                    alignment: start;
+                    PageTitle { text: "Device"; }
+                    if root.official-running: InfoBar {
+                        warning: true;
+                        text: "The official Monster app is running. Close it so it doesn't fight over the screen.";
+                    }
+                    Card {
+                        title: "Background service";
+                        subtitle: "Runs from Windows startup, talks to the cooler and keeps the screen awake.";
+                        SettingRow {
+                            label: "Status";
+                            Text {
+                                text: root.service-state;
+                                color: root.service-running ? #22c55e : #f59e0b;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                        SettingRow {
+                            label: "Cooler";
+                            Text {
+                                text: root.cooler-state;
+                                color: Palette.foreground;
+                                vertical-alignment: center;
+                            }
+                        }
+                        if root.last-error != "": InfoBar { text: "Last error: " + root.last-error; }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            Button {
+                                text: "Restart service";
+                                clicked => { root.repair-service(); }
+                            }
+                            Button {
+                                text: "Open log";
+                                clicked => { root.open-log(); }
+                            }
+                            Button {
+                                text: "Open data folder";
+                                clicked => { root.open-data-folder(); }
+                            }
+                        }
+                    }
+                    Card {
+                        title: "Sensors";
+                        subtitle: "Read from HWiNFO or LibreHardwareMonitor (whichever is running), plus NVIDIA GPUs directly.";
+                        Text {
+                            text: root.sensors-state;
+                            color: Palette.foreground;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "HWiNFO: open Settings, enable \"Shared Memory Support\" and keep HWiNFO running (sensors window can be closed). The free version turns this off after 12 hours.\nLibreHardwareMonitor: run it as administrator and enable Options > Remote Web Server > Run.";
+                            color: Palette.foreground;
+                            opacity: 0.75;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            Button {
+                                text: "Get HWiNFO";
+                                clicked => { root.open-url("https://www.hwinfo.com/download/"); }
+                            }
+                            Button {
+                                text: "Get LibreHardwareMonitor";
+                                clicked => { root.open-url("https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases"); }
+                            }
+                        }
+                        SettingRow {
+                            label: "LibreHardwareMonitor web server port";
+                            LineEdit {
+                                width: 100px;
+                                text <=> root.lhm-port;
+                                input-type: number;
+                                edited(t) => { root.lhm-port-edited(t); }
+                            }
+                        }
+                    }
+                    Card {
+                        title: "ffmpeg";
+                        subtitle: "Needed only for video and GIF backgrounds. Kept private to this app; it doesn't change PATH.";
+                        SettingRow {
+                            label: "Status";
+                            Text {
+                                text: root.ffmpeg-state;
+                                color: root.ffmpeg-ok ? #22c55e : Palette.foreground;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                max-width: 520px;
+                            }
+                        }
+                        if root.ffmpeg-busy: ProgressIndicator {
+                            height: 6px;
+                            progress: root.ffmpeg-progress;
+                        }
+                        if !root.ffmpeg-ok && !root.ffmpeg-busy: HorizontalLayout {
+                            alignment: start;
+                            Button {
+                                text: "Download ffmpeg (about 90 MB)";
+                                primary: true;
+                                clicked => { root.download-ffmpeg(); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.page == 3: ScrollView {
+                width: parent.width;
+                height: parent.height;
+                VerticalLayout {
+                    padding: 28px;
+                    spacing: 16px;
+                    alignment: start;
+                    PageTitle { text: "About"; }
+                    Card {
+                        title: "AIO Cooler Screen " + root.version;
+                        subtitle: "Backgrounds and live stats for the Monster AIO Cooler LCD. Not affiliated with Monster.";
+                        Text {
+                            wrap: word-wrap;
+                            color: Palette.foreground;
+                            font-size: 13px;
+                            text: "Sensors come from HWiNFO or LibreHardwareMonitor and, for NVIDIA GPUs, the driver's NVML. Videos are converted with ffmpeg. Made with Slint.";
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        AboutSlint {
+                            width: 280px;
+                            height: 150px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
