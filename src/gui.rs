@@ -35,7 +35,16 @@ const FITS: [Fit; 3] = [Fit::Cover, Fit::Contain, Fit::Stretch];
 const POSITIONS: [Position; 3] = [Position::Top, Position::Center, Position::Bottom];
 const CLOCK_STATS: [ClockStats; 3] = [ClockStats::Temps, ClockStats::Loads, ClockStats::None];
 /// Displayed size of the round preview, in logical pixels (the canvas is 480).
-const PREVIEW_PX: f32 = 280.0;
+const PREVIEW_PX: f32 = 300.0;
+
+/// Backgrounds shipped with the app (made with tools/make-backgrounds.ps1).
+const BACKGROUNDS: [(&str, &[u8]); 4] = [
+    ("Nebula", include_bytes!("../assets/backgrounds/nebula.png")),
+    ("Aurora", include_bytes!("../assets/backgrounds/aurora.png")),
+    ("Neon rings", include_bytes!("../assets/backgrounds/neon-rings.png")),
+    ("Sunset", include_bytes!("../assets/backgrounds/sunset.png")),
+];
+const BUILTIN_SUFFIX: &str = " (built-in)";
 
 enum Job {
     Poster(Result<RgbaImage, String>),
@@ -246,11 +255,17 @@ fn index_of<T: PartialEq>(all: &[T], v: &T) -> i32 {
     all.iter().position(|x| x == v).unwrap_or(0) as i32
 }
 
+/// Which built-in background is on the screen, or -1.
+fn builtin_index(cfg: &Config) -> i32 {
+    let Some(src) = cfg.media_source.as_deref().filter(|_| !cfg.media_is_video) else { return -1 };
+    BACKGROUNDS.iter().position(|(n, _)| format!("{n}{BUILTIN_SUFFIX}") == src).map_or(-1, |i| i as i32)
+}
+
 fn media_label(cfg: &Config) -> String {
     match (&cfg.media_source, &cfg.media_file) {
         (Some(src), _) => format!("{src}{}", if cfg.media_is_video { " (video)" } else { "" }),
-        (None, Some(f)) => f.clone(),
-        (None, None) => "none".into(),
+        (None, Some(_)) => if cfg.media_is_video { "Your video" } else { "Your image" }.into(),
+        (None, None) => "No background set".into(),
     }
 }
 
@@ -259,6 +274,15 @@ fn init_ui(ui: &AppWindow, state: &State) {
     ui.set_version(env!("CARGO_PKG_VERSION").into());
     let kinds: Vec<SharedString> = WidgetKind::ALL.iter().map(|k| k.name().into()).collect();
     ui.set_widget_kinds(ModelRc::new(VecModel::from(kinds)));
+    let bg_thumbs: Vec<Image> = BACKGROUNDS
+        .iter()
+        .filter_map(|(_, png)| image::load_from_memory(png).ok())
+        .map(|img| to_image(&img.resize_exact(184, 184, FilterType::Lanczos3).to_rgba8()))
+        .collect();
+    ui.set_bg_thumbs(ModelRc::new(VecModel::from(bg_thumbs)));
+    let bg_names: Vec<SharedString> = BACKGROUNDS.iter().map(|(n, _)| SharedString::from(*n)).collect();
+    ui.set_bg_names(ModelRc::new(VecModel::from(bg_names)));
+    ui.set_bg_selected(builtin_index(&state.cfg));
     refresh_gallery(ui, state);
     let swatches: Vec<slint::Color> = SWATCHES.iter().map(|c| slint::Color::from_rgb_u8(c[0], c[1], c[2])).collect();
     ui.set_swatches(ModelRc::new(VecModel::from(swatches)));
@@ -651,6 +675,34 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
 
     let weak = ui.as_weak();
     let st = state.clone();
+    ui.on_builtin_background(move |i| {
+        let Some(ui) = weak.upgrade() else { return };
+        let Some((name, png)) = BACKGROUNDS.get(i.max(0) as usize) else { return };
+        let mut s = st.borrow_mut();
+        let file = format!("media-{}.png", media::now_ms());
+        if let Err(e) = std::fs::create_dir_all(config::data_dir()).and_then(|_| std::fs::write(config::data_dir().join(&file), png)) {
+            show_message(&ui, false, format!("Could not save the background: {e}"));
+            return;
+        }
+        let old = s.cfg.media_file.replace(file);
+        s.cfg.media_is_video = false;
+        s.cfg.media_source = Some(format!("{name}{BUILTIN_SUFFIX}"));
+        s.cfg.media_version += 1;
+        save(&ui, &s);
+        if let Some(old) = old.filter(|o| Some(o) != s.cfg.media_file.as_ref()) {
+            let _ = std::fs::remove_file(config::data_dir().join(old));
+        }
+        if let Ok(img) = image::load_from_memory(png) {
+            s.preview_bg = img.to_rgba8();
+        }
+        ui.set_media_name(media_label(&s.cfg).into());
+        ui.set_bg_selected(i);
+        show_message(&ui, true, format!("{name} sent to the cooler."));
+        refresh_preview(&ui, &s);
+    });
+
+    let weak = ui.as_weak();
+    let st = state.clone();
     ui.on_browse(move || {
         let Some(ui) = weak.upgrade() else { return };
         let exts: Vec<&str> = IMAGE_EXTENSIONS.iter().chain(VIDEO_EXTENSIONS).copied().collect();
@@ -769,6 +821,7 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
                             Err(e) => show_message(ui, false, format!("Could not save settings: {e}")),
                         }
                         ui.set_media_name(media_label(&s.cfg).into());
+                        ui.set_bg_selected(builtin_index(&s.cfg));
                         s.preview_bg = poster;
                         refresh_preview(ui, &s);
                     }

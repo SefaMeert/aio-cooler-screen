@@ -12,6 +12,10 @@ pub const SERVICE_NAME: &str = "AioScreen";
 pub const SERVICE_DISPLAY_NAME: &str = "AIO Cooler Screen";
 
 pub fn data_dir() -> PathBuf {
+    // For testing the GUI against a throwaway folder instead of the real settings.
+    if let Some(dir) = std::env::var_os("AIO_DATA_DIR") {
+        return PathBuf::from(dir);
+    }
     let base = std::env::var_os("ProgramData").map_or_else(|| PathBuf::from(r"C:\ProgramData"), PathBuf::from);
     base.join("aio-screen")
 }

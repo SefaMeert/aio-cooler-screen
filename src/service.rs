@@ -177,10 +177,16 @@ fn worker(stop_rx: &mpsc::Receiver<()>) {
                 }
                 if applied != Some(cfg.media_version) {
                     if let Some(path) = media_path(&cfg) {
-                        let data = std::fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-                        let (ext, kind) = if cfg.media_is_video { ("mp4", MediaKind::Video) } else { ("png", MediaKind::Image) };
-                        s.upload(&data, &timestamp_name(ext), kind)?;
-                        log(&format!("uploaded {} ({} bytes)", path.display(), data.len()));
+                        // A missing or unreadable file is a settings problem, not a device
+                        // error: log it and keep showing the stats.
+                        match std::fs::read(&path) {
+                            Ok(data) => {
+                                let (ext, kind) = if cfg.media_is_video { ("mp4", MediaKind::Video) } else { ("png", MediaKind::Image) };
+                                s.upload(&data, &timestamp_name(ext), kind)?;
+                                log(&format!("uploaded {} ({} bytes)", path.display(), data.len()));
+                            }
+                            Err(e) => log(&format!("skipping background {}: {e}", path.display())),
+                        }
                     }
                     applied = Some(cfg.media_version);
                 }

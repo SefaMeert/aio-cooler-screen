@@ -10,8 +10,9 @@ official app.
 
 ## Features
 
-- **Backgrounds:** PNG, JPG, BMP, WebP images, and MP4/MOV/MKV/WebM/AVI/WMV videos or animated GIFs.
-  Crop to fill, fit inside, or stretch to the 480×480 screen.
+- **Backgrounds:** four built-in backgrounds (Nebula, Aurora, Neon rings, Sunset), or your own
+  PNG/JPG/BMP/WebP images and MP4/MOV/MKV/WebM/AVI/WMV videos or animated GIFs. Crop to fill,
+  fit inside, or stretch to the 480×480 screen.
 - **Four stat designs:** ring gauges, dashboard tiles, one big stat, and clock + stats
   (24-hour, or 12-hour with AM/PM). Each design has its own font, text size, outline,
   colours, background dimming and design-specific options.
