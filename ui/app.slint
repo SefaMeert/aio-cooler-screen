@@ -275,7 +275,9 @@ component InfoLine inherits HorizontalLayout {
 
 export component AppWindow inherits Window {
     title: "AIO Cooler Screen";
-    icon: root.app-icon;
+    // Embedded at compile time: Slint 1.18 never applies a window icon made at runtime
+    // (Image::from_rgba8 has no cache key, so the backend thinks the icon is unchanged).
+    icon: @image-url("../assets/icon.png");
     preferred-width: 1280px;
     preferred-height: 820px;
     min-width: 1180px;
