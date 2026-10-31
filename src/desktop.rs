@@ -172,6 +172,7 @@ pub fn listen_for_show(on_show: impl Fn() + Send + 'static) {
 pub enum TrayAction {
     Open,
     ToggleStats(bool),
+    ToggleDisplay,
     Quit,
 }
 
@@ -180,7 +181,12 @@ pub struct Tray {
     light: bool,
     open: MenuItem,
     stats: CheckMenuItem,
+    display: MenuItem,
     quit: MenuItem,
+}
+
+fn display_label(off: bool) -> &'static str {
+    if off { "Turn on display" } else { "Turn off display" }
 }
 
 fn mono_icon(light_taskbar: bool) -> Option<Icon> {
@@ -190,12 +196,13 @@ fn mono_icon(light_taskbar: bool) -> Option<Icon> {
 }
 
 impl Tray {
-    pub fn new(stats_on: bool) -> Result<Tray, String> {
+    pub fn new(stats_on: bool, display_off: bool) -> Result<Tray, String> {
         let open = MenuItem::new("Open AIO Cooler Screen", true, None);
         let stats = CheckMenuItem::new("Show live stats", true, stats_on, None);
+        let display = MenuItem::new(display_label(display_off), true, None);
         let quit = MenuItem::new("Quit", true, None);
         let menu = Menu::new();
-        menu.append_items(&[&open, &stats, &PredefinedMenuItem::separator(), &quit]).map_err(|e| e.to_string())?;
+        menu.append_items(&[&open, &stats, &display, &PredefinedMenuItem::separator(), &quit]).map_err(|e| e.to_string())?;
         let light = taskbar_is_light();
         let mut builder = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -205,7 +212,7 @@ impl Tray {
             builder = builder.with_icon(icon);
         }
         let icon = builder.build().map_err(|e| e.to_string())?;
-        Ok(Tray { icon, light, open, stats, quit })
+        Ok(Tray { icon, light, open, stats, display, quit })
     }
 
     /// Follow the Windows theme so the monochrome icon stays visible.
@@ -225,6 +232,10 @@ impl Tray {
         self.stats.set_checked(on);
     }
 
+    pub fn set_display_off(&self, off: bool) {
+        self.display.set_text(display_label(off));
+    }
+
     /// Pending clicks and menu choices.
     pub fn poll(&self) -> Vec<TrayAction> {
         let mut actions = Vec::new();
@@ -240,6 +251,8 @@ impl Tray {
                 actions.push(TrayAction::Open);
             } else if ev.id == *self.stats.id() {
                 actions.push(TrayAction::ToggleStats(self.stats.is_checked()));
+            } else if ev.id == *self.display.id() {
+                actions.push(TrayAction::ToggleDisplay);
             } else if ev.id == *self.quit.id() {
                 actions.push(TrayAction::Quit);
             }

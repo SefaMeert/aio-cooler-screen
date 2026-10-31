@@ -443,6 +443,8 @@ pub struct Config {
     /// Bumped by the GUI on every change so the service re-uploads.
     pub media_version: u64,
     pub stats: StatsConfig,
+    /// The user turned the screen off: the service blanks it and stops waking it.
+    pub display_off: bool,
 }
 
 impl Config {
@@ -483,6 +485,7 @@ fn migrate_v1(v: serde_json::Value) -> Config {
         media_is_video: from(get(&v, "media_is_video")).unwrap_or_default(),
         media_version: from(get(&v, "media_version")).unwrap_or_default(),
         stats: StatsConfig::default(),
+        display_off: false,
     };
     let s = get(&v, "stats");
     let st = &mut cfg.stats;

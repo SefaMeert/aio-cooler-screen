@@ -35,6 +35,20 @@ impl Screen {
         Ok(())
     }
 
+    /// Wake the screen again after `power_off` (or a long gap), dropping any stale replies.
+    pub fn wake(&mut self) -> Result<(), String> {
+        self.drain();
+        self.handshake()
+    }
+
+    /// Ask the screen to switch off: the counterpart of the handshake's `resume` event.
+    /// Not seen in captured traffic, so callers treat a refusal as non-fatal; the screen
+    /// also blanks by itself ~30 s after the host stops sending.
+    pub fn power_off(&mut self) -> Result<(), String> {
+        self.command("power", Some(r#"{"event":"suspend"}"#), Duration::from_secs(2), |_| true)?;
+        Ok(())
+    }
+
     fn drain(&self) {
         let mut buf = [0u8; REPORT_LEN];
         while matches!(self.dev.read_timeout(&mut buf, 20), Ok(n) if n > 0) {}

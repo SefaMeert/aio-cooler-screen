@@ -20,7 +20,7 @@ use windows_service::{define_windows_service, service_dispatcher};
 
 use crate::config::{self, Config, Status, SERVICE_DISPLAY_NAME, SERVICE_NAME};
 use crate::device::Screen;
-use crate::media::{encode_png, now_ms, timestamp_name};
+use crate::media::{encode_png, now_ms, timestamp_name, SCREEN_SIZE};
 use crate::overlay;
 use crate::protocol::MediaKind;
 use crate::sensors::{Reading, SensorHub, READING_TEMP, READING_USAGE};
@@ -114,6 +114,18 @@ fn media_path(cfg: &Config) -> Option<std::path::PathBuf> {
     (Path::new(name).file_name()? == name).then(|| config::data_dir().join(name))
 }
 
+/// Darken the screen and ask it to switch off. The opaque black overlay makes it go dark
+/// at once even if the screen ignores the power command.
+fn blank(s: &mut Screen) -> Result<(), String> {
+    let black = image::RgbaImage::from_pixel(SCREEN_SIZE, SCREEN_SIZE, image::Rgba([0, 0, 0, 255]));
+    s.upload(&encode_png(&black)?, &timestamp_name("osd"), MediaKind::Overlay)?;
+    match s.power_off() {
+        Ok(()) => log("display turned off"),
+        Err(e) => log(&format!("display blanked; power off not accepted ({e}), it switches off after its timeout")),
+    }
+    Ok(())
+}
+
 fn worker(stop_rx: &mpsc::Receiver<()>) {
     let sensors = Arc::new(Mutex::new(SensorState::default()));
     let stop = Arc::new(AtomicBool::new(false));
@@ -127,6 +139,8 @@ fn worker(stop_rx: &mpsc::Receiver<()>) {
     let mut applied: Option<u64> = None;
     let mut last_error: Option<String> = None;
     let mut last_ok = Instant::now();
+    // The open connection has been blanked because the user turned the display off.
+    let mut blanked = false;
 
     loop {
         match stop_rx.recv_timeout(Duration::from_secs(1)) {
@@ -171,7 +185,19 @@ fn worker(stop_rx: &mpsc::Receiver<()>) {
 
         if let Some(s) = screen.as_mut() {
             let result = (|| -> Result<(), String> {
-                if last_ok.elapsed() > REWAKE_AFTER {
+                if cfg.display_off {
+                    // Blank once, then send nothing so the screen stays off.
+                    if !blanked {
+                        blank(s)?;
+                        blanked = true;
+                    }
+                    return Ok(());
+                }
+                if blanked {
+                    s.wake()?;
+                    blanked = false;
+                    log("display turned on");
+                } else if last_ok.elapsed() > REWAKE_AFTER {
                     s.handshake()?;
                     log("re-sent connect handshake after a gap");
                 }
@@ -205,6 +231,7 @@ fn worker(stop_rx: &mpsc::Receiver<()>) {
                     }
                     last_error = Some(e);
                     screen = None; // reconnect on the next tick
+                    blanked = false; // a new connection wakes the screen, so blank it again
                 }
             }
         }

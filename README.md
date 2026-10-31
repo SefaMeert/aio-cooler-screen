@@ -25,7 +25,9 @@ official app.
 - **Starts with Windows:** a background service drives the screen from boot, keeps it awake
   and wakes it again after sleep, with no admin prompts. You can turn this off.
 - **Tray icon:** a monochrome icon that follows your Windows theme. Its menu has Open,
-  Show live stats and Quit, and the app can start in the tray when you sign in.
+  Show live stats, Turn off display and Quit, and the app can start in the tray when you sign in.
+- **Turn off display:** switch the pump screen off from the app's sidebar or the tray menu, and
+  back on the same way. It stays off across restarts until you turn it on.
 - **Windows 11 look:** light/dark mode follows Windows.
 
 ## Install
@@ -64,7 +66,7 @@ PATH isn't changed, and uninstalling removes it.
 ## Build from source
 
 Requirements: [Rust](https://rustup.rs) (MSVC toolchain) and, for the installer,
-[Inno Setup 6](https://jrsoftware.org/isdl.php).
+[Inno Setup 6.6 or later](https://jrsoftware.org/isdl.php).
 
 ```powershell
 cargo test

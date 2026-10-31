@@ -173,7 +173,7 @@ fn show_window(ui: AppWindow) {
 /// Create or remove the tray icon, and reflect it in the Settings controls.
 fn set_tray(ui: &AppWindow, s: &mut State, on: bool) {
     if on && s.tray.is_none() {
-        match Tray::new(s.cfg.stats.enabled) {
+        match Tray::new(s.cfg.stats.enabled, s.cfg.display_off) {
             Ok(t) => s.tray = Some(t),
             Err(e) => show_message(ui, false, format!("Could not create the tray icon: {e}")),
         }
@@ -182,6 +182,16 @@ fn set_tray(ui: &AppWindow, s: &mut State, on: bool) {
     }
     ui.set_show_tray(s.tray.is_some());
     ui.set_login_tray(desktop::open_at_login());
+}
+
+/// Turn the cooler screen off or back on (the service acts on the saved config).
+fn set_display_off(ui: &AppWindow, s: &mut State, off: bool) {
+    s.cfg.display_off = off;
+    save(ui, s);
+    ui.set_display_off(off);
+    if let Some(t) = &s.tray {
+        t.set_display_off(off);
+    }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -324,6 +334,7 @@ fn media_label(cfg: &Config) -> String {
 fn init_ui(ui: &AppWindow, state: &State) {
     ui.set_app_icon(to_image(&icon::render(64)));
     ui.set_version(env!("CARGO_PKG_VERSION").into());
+    ui.set_display_off(state.cfg.display_off);
     let kinds: Vec<SharedString> = WidgetKind::ALL.iter().map(|k| k.name().into()).collect();
     ui.set_widget_kinds(ModelRc::new(VecModel::from(kinds)));
     let bg_thumbs: Vec<Image> = BACKGROUNDS
@@ -878,6 +889,15 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         let _ = Command::new("notepad.exe").arg(config::data_dir().join("service.log")).spawn();
     });
     ui.on_open_url(|url| open_url(&url));
+
+    let weak = ui.as_weak();
+    let st = state.clone();
+    ui.on_toggle_display(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut s = st.borrow_mut();
+        let off = !s.cfg.display_off;
+        set_display_off(&ui, &mut s, off);
+    });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -895,6 +915,10 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
                 save(ui, &s);
                 ui.set_stats_enabled(on);
                 refresh_preview(ui, &s);
+            }
+            TrayAction::ToggleDisplay => {
+                let off = !s.cfg.display_off;
+                set_display_off(ui, &mut s, off);
             }
             TrayAction::Quit => {
                 let _ = slint::quit_event_loop();

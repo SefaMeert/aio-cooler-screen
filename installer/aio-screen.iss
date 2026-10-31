@@ -26,7 +26,8 @@ SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 LicenseFile=..\LICENSE
-WizardStyle=modern
+; Follows the Windows light/dark setting (needs Inno Setup 6.6 or later).
+WizardStyle=modern dynamic
 Compression=lzma2/max
 SolidCompression=yes
 CloseApplications=yes

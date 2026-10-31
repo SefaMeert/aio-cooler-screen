@@ -387,6 +387,7 @@ export component AppWindow inherits Window {
     in property <bool> autostart-busy;
     in-out property <bool> show-tray;
     in-out property <bool> login-tray;
+    in property <bool> display-off;
 
     callback builtin-background(int);
     callback browse();
@@ -414,6 +415,7 @@ export component AppWindow inherits Window {
     callback autostart-toggled(bool);
     callback show-tray-toggled(bool);
     callback login-toggled(bool);
+    callback toggle-display();
 
     HorizontalLayout {
         // ---- Sidebar -----------------------------------------------------------------------
@@ -466,6 +468,11 @@ export component AppWindow inherits Window {
                     clicked => { root.page = 3; }
                 }
                 Rectangle { vertical-stretch: 1; }
+                NavItem {
+                    glyph: "\u{E7E8}";
+                    text: root.display-off ? "Turn on display" : "Turn off display";
+                    clicked => { root.toggle-display(); }
+                }
                 Rectangle {
                     border-radius: 6px;
                     background: #80808014;
@@ -478,11 +485,11 @@ export component AppWindow inherits Window {
                                 width: 10px;
                                 height: 10px;
                                 border-radius: 5px;
-                                background: root.cooler-ok ? #22c55e : #f59e0b;
+                                background: root.display-off ? #808080 : root.cooler-ok ? #22c55e : #f59e0b;
                             }
                         }
                         Text {
-                            text: root.cooler-state;
+                            text: root.display-off ? "Display off" : root.cooler-state;
                             font-size: 12px;
                             color: Palette.foreground;
                             vertical-alignment: center;
