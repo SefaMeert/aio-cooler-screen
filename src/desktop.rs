@@ -32,11 +32,13 @@ fn wide(s: &str) -> Vec<u16> {
 pub struct Prefs {
     /// Show the tray icon; closing the window then keeps the app in the tray.
     pub show_tray: bool,
+    /// 0 = English (default), 1 = Türkçe.
+    pub language: i32,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { show_tray: true }
+        Prefs { show_tray: true, language: 0 }
     }
 }
 

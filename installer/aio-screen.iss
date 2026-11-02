@@ -39,6 +39,8 @@ Name: "ffmpeg"; Description: "Download ffmpeg (about 90 MB) for video background
 [Files]
 Source: "..\target\release\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\assets\fonts\*.ttf"; DestDir: "{app}\fonts"; Flags: ignoreversion
+Source: "..\assets\fonts\licenses\*.txt"; DestDir: "{app}\fonts\licenses"; Flags: ignoreversion
 ; PawnIO: signed open-source driver for reading CPU temperatures (installed only if missing).
 Source: "..\third_party\PawnIO_setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: PawnIOMissing
 Source: "..\third_party\pawnio\AMDFamily17.bin"; DestDir: "{app}\pawnio"; Flags: ignoreversion

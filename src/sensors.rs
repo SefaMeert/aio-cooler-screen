@@ -32,7 +32,7 @@ pub const LOC_GPU: i32 = 13;
 const NVML_RETRY: Duration = Duration::from_secs(60);
 
 /// One sensor value, flattened for display and selection.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Reading {
     /// Stable identifier: "<source> · <sensor> / <reading>".
     pub key: String,
@@ -193,6 +193,12 @@ fn walk_lhm(node: &LhmNode, depth: usize, hardware: &str, kinds: &[i32], out: &m
         let kind = match kind.as_str() {
             "Temperature" => READING_TEMP,
             "Load" => READING_USAGE,
+            "Voltage" => 2,
+            "Fan" => 3,
+            "Current" => 4,
+            "Power" => 5,
+            "Clock" => 6,
+            "Data" | "SmallData" | "Throughput" | "Control" | "Level" | "Factor" => 8,
             _ => 0,
         };
         if kind != 0 && (kinds.is_empty() || kinds.contains(&kind)) {

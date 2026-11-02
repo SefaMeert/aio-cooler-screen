@@ -1,0 +1,45 @@
+name: Build Windows app and installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust MSVC toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and package Windows installer
+        shell: pwsh
+        run: ./build-installer.ps1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload setup installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-cooler-screen-windows-setup
+          path: dist/AIO-Cooler-Screen-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Upload standalone application (advanced users)
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-cooler-screen-standalone-exe
+          path: target/release/aio-screen.exe
+          if-no-files-found: error
