@@ -13,7 +13,7 @@ Bu depo, [Thnorty/aio-cooler-screen](https://github.com/Thnorty/aio-cooler-scree
 - **Genişletilmiş donanım sensörleri:** Donanımın desteklediği fan/pompa RPM, voltaj, güç, akım ve frekans gibi LibreHardwareMonitor değerleri.
 - **Daha anlaşılır sensör seçimi:** Sensör türü/kategorisi etiketleri; mevcut tasarımların sensör kimliklerini koruma hedefi.
 - **İngilizce ve Türkçe arayüz:** Varsayılan İngilizce; dil tercihi kaydedilebilir. Donanımdan gelen sensör isimleri kendi dilinde kalabilir.
-- **Ek fontlar:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed ve Oswald. Fontlar lisanslarıyla birlikte kullanıcı kurulumunda değil, Windows kurulum paketi derlenirken indirilir. Ayrıntılar: [FONT-README.md](FONT-README.md).
+- **Ek fontlar:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed ve Oswald. Ayrıntılar: [FONT-README.md](FONT-README.md).
 - **GitHub Actions:** Tam Windows kurulum paketi ve ileri düzey kullanıcılar için tek başına EXE dosyası üretimi.
 
 ## Orijinal projeden gelen özellikler
