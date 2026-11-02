@@ -13,7 +13,7 @@ A fork of [Thnorty/aio-cooler-screen](https://github.com/Thnorty/aio-cooler-scre
 - **Extended hardware sensors:** Additional LibreHardwareMonitor readings, including fan/pump RPM, voltage, power, current and clocks where available.
 - **Clearer sensor selection:** Sensor type/category labels while aiming to preserve identifiers used by existing designs.
 - **English and Turkish UI:** English by default, with a saved language preference. Hardware sensor names may remain in their original language.
-- **More fonts:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed and Oswald alongside existing choices. Fonts and their licence files are downloaded during the Windows installer build, not during installation. See [FONT-README.md](FONT-README.md).
+- **More fonts:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed and Oswald alongside existing choices. See [FONT-README.md](FONT-README.md).
 - **Windows build workflow:** GitHub Actions creates a full Windows installer and a standalone executable for advanced use.
 
 ## Features inherited from the original project
