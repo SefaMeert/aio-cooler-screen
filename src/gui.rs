@@ -35,7 +35,7 @@ const SWATCHES: [[u8; 3]; 8] = [
 const FITS: [Fit; 3] = [Fit::Cover, Fit::Contain, Fit::Stretch];
 const POSITIONS: [Position; 3] = [Position::Top, Position::Center, Position::Bottom];
 const CLOCK_STATS: [ClockStats; 3] = [ClockStats::Temps, ClockStats::Loads, ClockStats::None];
-/// Displayed size of the round preview, in logical pixels (the canvas is 480).
+/// Displayed size of the LCD preview, in logical pixels (the canvas is 480).
 const PREVIEW_PX: f32 = 300.0;
 
 /// Backgrounds shipped with the app (made with tools/make-backgrounds.ps1).
@@ -175,7 +175,7 @@ fn set_tray(ui: &AppWindow, s: &mut State, on: bool) {
     if on && s.tray.is_none() {
         match Tray::new(s.cfg.stats.enabled, s.cfg.display_off) {
             Ok(t) => s.tray = Some(t),
-            Err(e) => show_message(ui, false, format!("Could not create the tray icon: {e}")),
+            Err(e) => show_message(ui, false, format!("{}: {e}", if s.prefs.language == 1 { "Sistem tepsisi simgesi oluşturulamadı" } else { "Could not create the tray icon" })),
         }
     } else if !on {
         s.tray = None;
@@ -243,7 +243,7 @@ fn refresh_gallery(ui: &AppWindow, state: &State) {
         .iter()
         .map(|d| match d {
             Design::Custom(id) => state.cfg.stats.custom.iter().find(|c| c.id == *id).map_or((if state.prefs.language == 1 { "Özel" } else { "Custom" }).into(), |c| c.name.as_str().into()),
-            d => (if state.prefs.language == 1 { d.name() } else { match d { Design::Gauges => "Ring gauges", Design::Tiles => "Dashboard tiles", Design::BigStat => "Big single stat", Design::Clock => "Clock and stats", Design::Custom(_) => "Custom" } }).into(),
+            d => (if state.prefs.language == 1 { match d { Design::Gauges => "Halka göstergeleri", Design::Tiles => "Gösterge panosu", Design::BigStat => "Büyük istatistik", Design::Clock => "Saat ve istatistikler", Design::Custom(_) => "Özel" } } else { d.name() }).into(),
         })
         .collect();
     ui.set_design_names(ModelRc::new(VecModel::from(names)));
@@ -335,12 +335,10 @@ fn init_ui(ui: &AppWindow, state: &State) {
     ui.set_app_icon(to_image(&icon::render(64)));
     ui.set_version(env!("CARGO_PKG_VERSION").into());
     ui.set_language(state.prefs.language.clamp(0, 1));
+    ui.set_preview_shape(state.prefs.preview_shape.clamp(0, 1));
     ui.set_display_off(state.cfg.display_off);
     let kinds: Vec<SharedString> = WidgetKind::ALL.iter().map(|k| {
-        let name = if state.prefs.language == 1 { k.name() } else { match k {
-            WidgetKind::Value => "Stat value", WidgetKind::Label => "Text", WidgetKind::Ring => "Ring gauge",
-            WidgetKind::Bar => "Progress bar", WidgetKind::Time => "Time", WidgetKind::Date => "Date",
-        } }; name.into()
+        let name = localized_widget_kind(*k, state.prefs.language); name.into()
     }).collect();
     ui.set_widget_kinds(ModelRc::new(VecModel::from(kinds)));
     let bg_thumbs: Vec<Image> = BACKGROUNDS
@@ -412,19 +410,31 @@ fn load_design_into_ui(ui: &AppWindow, cfg: &Config) {
 }
 
 /// Which widget properties the editor shows for each kind, and the size slider's range.
-fn size_range(kind: WidgetKind) -> (&'static str, f32, f32) {
+fn size_range(kind: WidgetKind, lang: i32) -> (&'static str, f32, f32) {
     match kind {
-        WidgetKind::Ring => ("Yarıçap", 20.0, 235.0),
-        WidgetKind::Bar => ("Genişlik", 20.0, 460.0),
-        _ => ("Metin boyutu", 10.0, 220.0),
+        WidgetKind::Ring => (if lang == 1 { "Yarıçap" } else { "Radius" }, 20.0, 235.0),
+        WidgetKind::Bar => (if lang == 1 { "Genişlik" } else { "Width" }, 20.0, 460.0),
+        _ => (if lang == 1 { "Metin boyutu" } else { "Text size" }, 10.0, 220.0),
     }
 }
 
-fn widget_label(w: &Widget) -> String {
+fn localized_widget_kind(kind: WidgetKind, lang: i32) -> &'static str {
+    if lang != 1 { return kind.name(); }
+    match kind {
+        WidgetKind::Value => "İstatistik değeri",
+        WidgetKind::Label => "Metin",
+        WidgetKind::Ring => "Halka göstergesi",
+        WidgetKind::Bar => "İlerleme çubuğu",
+        WidgetKind::Time => "Saat",
+        WidgetKind::Date => "Tarih",
+    }
+}
+
+fn widget_label(w: &Widget, lang: i32) -> String {
     match w.kind {
-        WidgetKind::Label => format!("Text \"{}\"", w.text),
-        k if k.uses_stat() => format!("{}: {}", k.name(), w.sensor_key.as_deref().unwrap_or(w.stat.title())),
-        k => k.name().to_string(),
+        WidgetKind::Label => format!("{} \"{}\"", localized_widget_kind(w.kind, lang), w.text),
+        k if k.uses_stat() => format!("{}: {}", localized_widget_kind(k, lang), w.sensor_key.as_deref().unwrap_or(w.stat.title())),
+        k => localized_widget_kind(k, lang).to_string(),
     }
 }
 
@@ -435,19 +445,19 @@ fn load_widgets_into_ui(ui: &AppWindow, state: &State) {
         ui.set_selected_widget(-1);
         return;
     };
-    let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w).into()).collect();
+    let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, state.prefs.language).into()).collect();
     ui.set_widget_names(ModelRc::new(VecModel::from(names)));
     let Some((i, w)) = state.selected_widget.and_then(|i| d.widgets.get(i).map(|w| (i, w))) else {
         ui.set_selected_widget(-1);
         return;
     };
     ui.set_selected_widget(i as i32);
-    ui.set_w_kind_name(w.kind.name().into());
+    ui.set_w_kind_name(localized_widget_kind(w.kind, state.prefs.language).into());
     ui.set_w_uses_stat(w.kind.uses_stat());
     ui.set_w_is_text(w.kind.is_text());
     ui.set_w_is_label(w.kind == WidgetKind::Label);
     ui.set_w_has_thickness(matches!(w.kind, WidgetKind::Ring | WidgetKind::Bar));
-    let (label, min, max) = size_range(w.kind);
+    let (label, min, max) = size_range(w.kind, state.prefs.language);
     ui.set_w_size_label(label.into());
     ui.set_w_size_min(min);
     ui.set_w_size_max(max);
@@ -461,7 +471,7 @@ fn load_widgets_into_ui(ui: &AppWindow, state: &State) {
     }
     if let Some(key) = &w.sensor_key {
         if !keys.iter().any(|k| k.as_ref() == Some(key)) {
-            labels.push(format!("Çevrimdışı: {key}").into());
+            labels.push(format!("{}: {key}", if state.prefs.language == 1 { "Çevrimdışı" } else { "Offline" }).into());
             keys.push(Some(key.clone()));
         }
     }
@@ -611,7 +621,7 @@ fn show_message(ui: &AppWindow, ok: bool, msg: impl Into<SharedString>) {
 
 fn save(ui: &AppWindow, state: &State) {
     if let Err(e) = state.cfg.save() {
-        show_message(ui, false, format!("Ayarlar kaydedilemedi: {e}"));
+        show_message(ui, false, format!("{}: {e}", if state.prefs.language == 1 { "Ayarlar kaydedilemedi" } else { "Could not save settings" }));
     }
 }
 
@@ -630,6 +640,14 @@ fn update_ffmpeg_ui(ui: &AppWindow, state: &State) {
 fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     {
         let st = state.clone();
+        ui.on_preview_shape_changed(move |shape| {
+            let mut s = st.borrow_mut();
+            s.prefs.preview_shape = shape.clamp(0, 1);
+            if let Err(e) = s.prefs.save() { eprintln!("Failed to save preview shape: {e}"); }
+        });
+    }
+    {
+        let st = state.clone();
         let weak = ui.as_weak();
         ui.on_language_changed(move |lang| {
             let Some(ui) = weak.upgrade() else { return };
@@ -637,6 +655,10 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
             s.prefs.language = lang.clamp(0, 1);
             if let Err(e) = s.prefs.save() { eprintln!("Failed to save language: {e}"); }
             refresh_gallery(&ui, &s);
+            load_widgets_into_ui(&ui, &s);
+            let kinds: Vec<SharedString> = WidgetKind::ALL.iter()
+                .map(|k| localized_widget_kind(*k, s.prefs.language).into()).collect();
+            ui.set_widget_kinds(ModelRc::new(VecModel::from(kinds)));
             update_ffmpeg_ui(&ui, &s);
             ui.set_media_name(media_label(&s.cfg, s.prefs.language).into());
         });
@@ -687,7 +709,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         let Some(ui) = weak.upgrade() else { return };
         let mut s = st.borrow_mut();
         let id = s.cfg.stats.custom.iter().map(|d| d.id).max().unwrap_or(0) + 1;
-        let name = format!("Tasarımım {}", s.cfg.stats.custom.len() + 1);
+        let name = format!("{} {}", if s.prefs.language == 1 { "Tasarımım" } else { "My design" }, s.cfg.stats.custom.len() + 1);
         s.cfg.stats.custom.push(CustomDesign::starter(id, name));
         s.cfg.stats.design = Design::Custom(id);
         s.cfg.stats.enabled = true;
@@ -753,7 +775,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         save(&ui, &s);
         // Only the list labels can change; keep the property controls as they are.
         if let Some(d) = s.cfg.stats.custom_design() {
-            let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w).into()).collect();
+            let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, s.prefs.language).into()).collect();
             ui.set_widget_names(ModelRc::new(VecModel::from(names)));
         }
         refresh_preview(&ui, &s);
@@ -840,7 +862,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         let mut s = st.borrow_mut();
         let file = format!("media-{}.png", media::now_ms());
         if let Err(e) = std::fs::create_dir_all(config::data_dir()).and_then(|_| std::fs::write(config::data_dir().join(&file), png)) {
-            show_message(&ui, false, format!("Arka plan kaydedilemedi: {e}"));
+            show_message(&ui, false, format!("{}: {e}", if s.prefs.language == 1 { "Arka plan kaydedilemedi" } else { "Could not save background" }));
             return;
         }
         let old = s.cfg.media_file.replace(file);
@@ -856,7 +878,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         }
         ui.set_media_name(media_label(&s.cfg, s.prefs.language).into());
         ui.set_bg_selected(i);
-        show_message(&ui, true, format!("{name} sent to the cooler."));
+        show_message(&ui, true, format!("{name} {}", if s.prefs.language == 1 { "soğutucuya gönderildi." } else { "sent to the cooler." }));
         refresh_preview(&ui, &s);
     });
 
@@ -865,7 +887,8 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     ui.on_browse(move || {
         let Some(ui) = weak.upgrade() else { return };
         let exts: Vec<&str> = IMAGE_EXTENSIONS.iter().chain(VIDEO_EXTENSIONS).copied().collect();
-        let Some(p) = rfd::FileDialog::new().add_filter("Görseller ve videolar", &exts).pick_file() else { return };
+        let language = st.borrow().prefs.language;
+        let Some(p) = rfd::FileDialog::new().add_filter(if language == 1 { "Görseller ve videolar" } else { "Images and videos" }, &exts).pick_file() else { return };
         ui.set_source_path(p.display().to_string().into());
         ui.set_source_is_video(media::is_video(&p));
         let s = st.borrow();
@@ -881,13 +904,14 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     ui.on_apply_media(move || {
         let Some(ui) = weak.upgrade() else { return };
         let src = PathBuf::from(ui.get_source_path().trim());
+        let language = st.borrow().prefs.language;
         if !src.exists() {
-            show_message(&ui, false, format!("Dosya bulunamadı: {}", src.display()));
+            show_message(&ui, false, format!("{}: {}", if language == 1 { "Dosya bulunamadı" } else { "File not found" }, src.display()));
             return;
         }
         let fit = FITS[ui.get_fit().clamp(0, 2) as usize];
         ui.set_busy(true);
-        ui.set_busy_text(if media::is_video(&src) { "Video dönüştürülüyor…" } else { "Görsel hazırlanıyor…" }.into());
+        ui.set_busy_text((if media::is_video(&src) { if language == 1 { "Video dönüştürülüyor…" } else { "Converting video…" } } else if language == 1 { "Görsel hazırlanıyor…" } else { "Preparing image…" }).into());
         ui.set_message(SharedString::new());
         let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         st.borrow().spawn(move || Job::Media(prepare_into_data_dir(&src, fit), name));
@@ -911,8 +935,9 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
     ui.on_repair_service(move || {
         let Some(ui) = weak.upgrade() else { return };
         ui.set_busy(true);
-        ui.set_busy_text("Hizmet yeniden başlatılıyor…".into());
-        show_message(&ui, true, "Approve the admin prompt to restart the background service.");
+        let language = st.borrow().prefs.language;
+        ui.set_busy_text((if language == 1 { "Hizmet yeniden başlatılıyor…" } else { "Restarting service…" }).into());
+        show_message(&ui, true, if language == 1 { "Arka plan hizmetini yeniden başlatmak için yönetici iznini onayla." } else { "Approve the admin prompt to restart the background service." });
         st.borrow().spawn(|| Job::ServiceRestarted(elevate("restart", &result_file("restart"))));
     });
 
@@ -936,7 +961,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         }
         s.prefs.show_tray = on;
         if let Err(e) = s.prefs.save() {
-            show_message(&ui, false, format!("Ayar kaydedilemedi: {e}"));
+            show_message(&ui, false, format!("{}: {e}", if s.prefs.language == 1 { "Ayar kaydedilemedi" } else { "Could not save preference" }));
         }
         set_tray(&ui, &mut s, on);
     });
@@ -1045,9 +1070,9 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
                                 if let Some(old) = old.filter(|o| Some(o) != s.cfg.media_file.as_ref()) {
                                     let _ = std::fs::remove_file(config::data_dir().join(old));
                                 }
-                                show_message(ui, true, "Soğutucuya gönderildi. Birkaç saniye içinde güncellenir.");
+                                show_message(ui, true, if s.prefs.language == 1 { "Soğutucuya gönderildi. Birkaç saniye içinde güncellenir." } else { "Sent to the cooler. It will update in a few seconds." });
                             }
-                            Err(e) => show_message(ui, false, format!("Ayarlar kaydedilemedi: {e}")),
+                            Err(e) => show_message(ui, false, format!("{}: {e}", if s.prefs.language == 1 { "Ayarlar kaydedilemedi" } else { "Could not save settings" })),
                         }
                         ui.set_media_name(media_label(&s.cfg, s.prefs.language).into());
                         ui.set_bg_selected(builtin_index(&s.cfg));
@@ -1067,7 +1092,7 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
             Job::ServiceRestarted(r) => {
                 ui.set_busy(false);
                 match r {
-                    Ok(()) => show_message(ui, true, "Arka plan hizmeti yeniden başlatıldı."),
+                    Ok(()) => show_message(ui, true, if s.prefs.language == 1 { "Arka plan hizmeti yeniden başlatıldı." } else { "Background service restarted." }),
                     Err(e) => show_message(ui, false, e),
                 }
                 s.last_poll = Instant::now() - Duration::from_secs(10);
@@ -1080,7 +1105,7 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
                 ui.set_ffmpeg_busy(false);
                 s.ffmpeg_progress_file = None;
                 if let Err(e) = r {
-                    show_message(ui, false, format!("ffmpeg download failed: {e}"));
+                    show_message(ui, false, format!("{}: {e}", if s.prefs.language == 1 { "ffmpeg indirme başarısız" } else { "ffmpeg download failed" }));
                 }
                 s.spawn(|| Job::FfmpegFound(ffmpeg::find()));
             }
@@ -1126,7 +1151,7 @@ fn tick(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         Some(ServiceState::Stopped) => (if lang == 1 { "Durduruldu" } else { "Stopped" }, false),
         Some(ServiceState::StartPending) => (if lang == 1 { "Başlatılıyor…" } else { "Starting…" }, false),
         Some(ServiceState::StopPending) => (if lang == 1 { "Durduruluyor…" } else { "Stopping…" }, false),
-        Some(_) => ("Busy", false),
+        Some(_) => (if lang == 1 { "Meşgul" } else { "Busy" }, false),
     };
     ui.set_service_state(svc_text.into());
     ui.set_service_running(running);

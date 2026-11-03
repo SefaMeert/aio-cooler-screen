@@ -295,6 +295,7 @@ export component AppWindow inherits Window {
     // Preview (Background and Design pages)
     in property <image> preview;
     in property <bool> preview-live;
+    in-out property <int> preview-shape: 0; // 0 = square, 1 = round
     in property <bool> official-running;
     in property <bool> sensors-ok;
 
@@ -411,6 +412,7 @@ export component AppWindow inherits Window {
     callback preview-pressed(float, float);
     callback preview-dragged(float, float);
     callback preview-released();
+    callback preview-shape-changed(int);
     callback settings-changed();
     callback source-selected(int, int);
     callback repair-service();
@@ -631,7 +633,7 @@ export component AppWindow inherits Window {
                         Card {
                             SettingRow {
                                 label: root.language == 1 ? "Canlı verileri göster" : "Show live stats";
-                                hint: "Turn off to show only the background.";
+                                hint: root.language == 1 ? "Yalnızca arka planı göstermek için kapat." : "Turn off to show only the background.";
                                 Switch {
                                     checked <=> root.stats-enabled;
                                     toggled => { root.settings-changed(); }
@@ -678,7 +680,7 @@ export component AppWindow inherits Window {
                                 }
                                 SettingRow {
                                     label: root.language == 1 ? "24 saat biçimi" : "24-hour time";
-                                    hint: "Off shows AM/PM in time widgets.";
+                                    hint: root.language == 1 ? "Kapatıldığında saat bileşenlerinde AM/PM gösterilir." : "Off shows AM/PM in time widgets.";
                                     Switch {
                                         checked <=> root.cu-h24;
                                         toggled => { root.settings-changed(); }
@@ -753,7 +755,7 @@ export component AppWindow inherits Window {
                                     }
                                     if root.w-uses-stat: SettingRow {
                                         label: root.language == 1 ? "Sensör" : "Sensor";
-                                        hint: "Fan/pump (RPM), temperature, power, voltage, clocks and more. Sorted by type.";
+                                        hint: root.language == 1 ? "Fan/pompa (RPM), sıcaklık, güç, voltaj, frekans ve daha fazlası. Türe göre sıralanır." : "Fan/pump (RPM), temperature, power, voltage, clocks and more. Sorted by type.";
                                         ComboBox {
                                             width: 320px;
                                             model: root.widget-sensor-choices;
@@ -763,7 +765,7 @@ export component AppWindow inherits Window {
                                     }
                                     if root.w-uses-stat: SettingRow {
                                         label: root.language == 1 ? "Gösterge üst sınırı" : "Gauge maximum";
-                                        hint: "Only for direct sensor rings/bars (RPM, W, V, MHz etc.).";
+                                        hint: root.language == 1 ? "Doğrudan sensör halkaları/çubukları için (RPM, W, V, MHz vb.)." : "Only for direct sensor rings/bars (RPM, W, V, MHz etc.).";
                                         Slider {
                                             width: 220px;
                                             minimum: 1;
@@ -773,7 +775,7 @@ export component AppWindow inherits Window {
                                         }
                                     }
                                     if root.w-is-label: SettingRow {
-                                        label: root.language == 1 ? "Metin" : "Thickness";
+                                        label: root.language == 1 ? "Metin" : "Text";
                                         LineEdit {
                                             width: 240px;
                                             text <=> root.w-text;
@@ -839,7 +841,7 @@ export component AppWindow inherits Window {
                                         }
                                     }
                                     if !root.w-auto: SettingRow {
-                                        label: root.language == 1 ? "Renk" : "Labels";
+                                        label: root.language == 1 ? "Renk" : "Color";
                                         Swatches {
                                             colors: root.swatches;
                                             selected <=> root.w-color-index;
@@ -869,7 +871,7 @@ export component AppWindow inherits Window {
                                 spacing: 12px;
                                 SettingRow {
                                     label: root.language == 1 ? "Yük halkaları" : "Load rings";
-                                    hint: "Thin inner rings for CPU and GPU load.";
+                                    hint: root.language == 1 ? "CPU ve GPU kullanımı için ince iç halkalar." : "Thin inner rings for CPU and GPU load.";
                                     Switch {
                                         checked <=> root.g-load-rings;
                                         toggled => { root.settings-changed(); }
@@ -877,7 +879,7 @@ export component AppWindow inherits Window {
                                 }
                                 SettingRow {
                                     label: root.language == 1 ? "Etiketler" : "Labels";
-                                    hint: "CPU / GPU titles and load text.";
+                                    hint: root.language == 1 ? "CPU/GPU başlıkları ve kullanım metinleri." : "CPU / GPU titles and load text.";
                                     Switch {
                                         checked <=> root.g-labels;
                                         toggled => { root.settings-changed(); }
@@ -989,7 +991,7 @@ export component AppWindow inherits Window {
                                 }
                                 SettingRow {
                                     label: root.language == 1 ? "İkinci satır" : "Second line";
-                                    hint: "Shows the related load or temperature underneath.";
+                                    hint: root.language == 1 ? "İlgili kullanım veya sıcaklık değerini altında gösterir." : "Shows the related load or temperature underneath.";
                                     Switch {
                                         checked <=> root.b-secondary;
                                         toggled => { root.settings-changed(); }
@@ -1001,7 +1003,7 @@ export component AppWindow inherits Window {
                                 spacing: 12px;
                                 SettingRow {
                                     label: root.language == 1 ? "24 saatlik saat" : "24-hour clock";
-                                    hint: "Off shows AM/PM.";
+                                    hint: root.language == 1 ? "Kapatıldığında AM/PM gösterilir." : "Off shows AM/PM.";
                                     Switch {
                                         checked <=> root.c-h24;
                                         toggled => { root.settings-changed(); }
@@ -1058,7 +1060,7 @@ export component AppWindow inherits Window {
                             }
                             SettingRow {
                                 label: root.language == 1 ? "Metin kenarlığı" : "Text outline";
-                                hint: "A dark edge so text reads well on bright backgrounds.";
+                                hint: root.language == 1 ? "Açık renkli arka planlarda okunabilirlik için koyu metin kenarlığı." : "A dark edge so text reads well on bright backgrounds.";
                                 Switch {
                                     checked <=> root.outline;
                                     toggled => { root.settings-changed(); }
@@ -1075,7 +1077,7 @@ export component AppWindow inherits Window {
                             }
                             SettingRow {
                                 label: root.language == 1 ? "Vurgu rengi" : "Accent colour";
-                                hint: "Rings, bars and highlights.";
+                                hint: root.language == 1 ? "Halkalar, çubuklar ve vurgular." : "Rings, bars and highlights.";
                                 Swatches {
                                     colors: root.swatches;
                                     selected <=> root.accent-index;
@@ -1084,7 +1086,7 @@ export component AppWindow inherits Window {
                             }
                             SettingRow {
                                 label: root.language == 1 ? "Sıcaklıklara göre renklendir" : "Colour temperatures";
-                                hint: "Blue when cool through green and amber to red when hot.";
+                                hint: root.language == 1 ? "Soğukken mavi, ardından yeşil ve sarı; sıcakken kırmızı." : "Blue when cool through green and amber to red when hot.";
                                 Switch {
                                     checked <=> root.temp-colors;
                                     toggled => { root.settings-changed(); }
@@ -1113,14 +1115,29 @@ export component AppWindow inherits Window {
                     Card {
                         title: root.language == 1 ? ("Önizleme") : ("Preview");
                         subtitle: root.design >= 4 && root.page == 1 && root.stats-enabled
-                            ? "Click a widget to select it, drag to move it."
-                            : root.preview-live ? "Live values from the service." : "Sample values until sensors report.";
+                            ? (root.language == 1 ? "Seçmek için bileşene tıkla, taşımak için sürükle." : "Click a widget to select it, drag to move it.")
+                            : root.preview-live ? (root.language == 1 ? "Hizmetten gelen canlı değerler." : "Live values from the service.") : (root.language == 1 ? "Sensörlerden veri gelene kadar örnek değerler." : "Sample values until sensors report.");
+                        HorizontalLayout {
+                            spacing: 10px;
+                            alignment: center;
+                            Text {
+                                text: root.language == 1 ? "Ekran şekli:" : "Screen shape:";
+                                color: Palette.foreground;
+                                vertical-alignment: center;
+                            }
+                            ComboBox {
+                                width: 145px;
+                                model: root.language == 1 ? ["Kare", "Yuvarlak"] : ["Square", "Round"];
+                                current-index <=> root.preview-shape;
+                                selected => { root.preview-shape-changed(self.current-index); }
+                            }
+                        }
                         HorizontalLayout {
                             alignment: center;
                             Rectangle {
                                 width: 300px;
                                 height: 300px;
-                                border-radius: 150px;
+                                border-radius: root.preview-shape == 1 ? 150px : 0px;
                                 clip: true;
                                 background: #000000;
                                 Image {
@@ -1245,7 +1262,7 @@ export component AppWindow inherits Window {
                             }
                         }
                         SettingRow {
-                            label: root.language == 1 ? "LibreHardwareMonitor web sunucu portu" : "Cooler";
+                            label: root.language == 1 ? "LibreHardwareMonitor web sunucu portu" : "LibreHardwareMonitor web server port";
                             LineEdit {
                                 width: 100px;
                                 text <=> root.lhm-port;

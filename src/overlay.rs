@@ -65,14 +65,14 @@ fn fonts(choice: FontChoice) -> Option<&'static Fonts> {
                 }
                 FontChoice::Arial => (vec![(format!("{F}arialbd.ttf"), None)], vec![(format!("{F}arial.ttf"), None)]),
                 FontChoice::Consolas => (vec![(format!("{F}consolab.ttf"), None)], vec![(format!("{F}consola.ttf"), None)]),
-                FontChoice::GoogleSans => (vec![(bundled_font("GoogleSans-Bold.ttf"), None)], vec![(bundled_font("GoogleSans-Regular.ttf"), None)]),
-                FontChoice::GoogleSansFlex => (vec![(bundled_font("GoogleSansFlex-Bold.ttf"), None)], vec![(bundled_font("GoogleSansFlex-Regular.ttf"), None)]),
-                FontChoice::Inter => (vec![(bundled_font("Inter-Bold.ttf"), None)], vec![(bundled_font("Inter-Regular.ttf"), None)]),
-                FontChoice::Rajdhani => (vec![(bundled_font("Rajdhani-Bold.ttf"), None)], vec![(bundled_font("Rajdhani-Regular.ttf"), None)]),
-                FontChoice::Orbitron => (vec![(bundled_font("Orbitron-Bold.ttf"), None)], vec![(bundled_font("Orbitron-Regular.ttf"), None)]),
-                FontChoice::JetBrainsMono => (vec![(bundled_font("JetBrainsMono-Bold.ttf"), None)], vec![(bundled_font("JetBrainsMono-Regular.ttf"), None)]),
-                FontChoice::RobotoCondensed => (vec![(bundled_font("RobotoCondensed-Bold.ttf"), None)], vec![(bundled_font("RobotoCondensed-Regular.ttf"), None)]),
-                FontChoice::Oswald => (vec![(bundled_font("Oswald-Bold.ttf"), None)], vec![(bundled_font("Oswald-Regular.ttf"), None)]),
+                FontChoice::GoogleSans => (vec![(bundled_font("GoogleSans-Bold.ttf"), Some(700.0))], vec![(bundled_font("GoogleSans-Regular.ttf"), Some(400.0))]),
+                FontChoice::GoogleSansFlex => (vec![(bundled_font("GoogleSansFlex-Bold.ttf"), Some(700.0))], vec![(bundled_font("GoogleSansFlex-Regular.ttf"), Some(400.0))]),
+                FontChoice::Inter => (vec![(bundled_font("Inter-Bold.ttf"), Some(700.0))], vec![(bundled_font("Inter-Regular.ttf"), Some(400.0))]),
+                FontChoice::Rajdhani => (vec![(bundled_font("Rajdhani-Bold.ttf"), Some(700.0))], vec![(bundled_font("Rajdhani-Regular.ttf"), Some(400.0))]),
+                FontChoice::Orbitron => (vec![(bundled_font("Orbitron-Bold.ttf"), Some(700.0))], vec![(bundled_font("Orbitron-Regular.ttf"), Some(400.0))]),
+                FontChoice::JetBrainsMono => (vec![(bundled_font("JetBrainsMono-Bold.ttf"), Some(700.0))], vec![(bundled_font("JetBrainsMono-Regular.ttf"), Some(400.0))]),
+                FontChoice::RobotoCondensed => (vec![(bundled_font("RobotoCondensed-Bold.ttf"), Some(700.0))], vec![(bundled_font("RobotoCondensed-Regular.ttf"), Some(400.0))]),
+                FontChoice::Oswald => (vec![(bundled_font("Oswald-Bold.ttf"), Some(700.0))], vec![(bundled_font("Oswald-Regular.ttf"), Some(400.0))]),
             };
             // Fall back to Segoe UI / Arial when a font is missing.
             let fallback_bold = [(format!("{F}segoeuib.ttf"), None), (format!("{F}arialbd.ttf"), None)];
