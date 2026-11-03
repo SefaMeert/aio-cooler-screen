@@ -1,43 +1,61 @@
 # AIO Cooler Screen — v1.2.4-Fork
 
-[**English**](README.md) | [Orijinal proje](https://github.com/Thnorty/aio-cooler-screen) | [Derleme ve kurulum](FORK-BUILD-README.md) | [Sensör rehberi](SENSOR-GUIDE.md)
+[**English**](README.md) · [Orijinal proje](https://github.com/Thnorty/aio-cooler-screen) · [Sürümler](https://github.com/SefaMeert/aio-cooler-screen/releases)
 
-Uyumlu Monster AIO soğutucuların LCD ekranları (USB HID `1D6B:0130`) için Windows uygulaması. **Thnorty/aio-cooler-screen** projesinin SefaMeert tarafından geliştirilen bağımsız fork'udur. Monster ile resmî bağlantısı yoktur.
+Uyumlu **Monster AIO sıvı soğutucuların LCD ekranları** (USB HID `1D6B:0130`) için Windows uygulaması. [Thnorty/aio-cooler-screen](https://github.com/Thnorty/aio-cooler-screen) projesinin SefaMeert tarafından geliştirilen topluluk fork'udur; Monster ile resmî bağlantısı yoktur. Diğer markalar ve LCD protokolleriyle uyumluluk doğrulanmamıştır.
 
-## Özellikler
+## Fork sürümünde yaptığım geliştirmeler
 
-- 480 × 480 LCD için görsel, animasyonlu GIF ve video arka planları (isteğe bağlı FFmpeg).
-- Hazır tasarımlar ve metin, değer, gösterge, katman ve ilerleme çubuğu içeren özel tasarım düzenleyicisi.
-- Canlı CPU/GPU bilgileri ve Windows arka plan hizmeti.
-- **Dahili donanım sensörleri:** Birlikte gelen .NET / LibreHardwareMonitor yardımcısıyla, ayrı bir LHM web sunucusu olmadan desteklenen frekans, voltaj, sıcaklık ve fan/pompa RPM değerlerini okuma.
-- Kayıtlı tasarımlardaki kararlı sensör kimliklerini koruyan anlaşılır sensör adları.
-- Diğer donanımlar için isteğe bağlı **harici LibreHardwareMonitor HTTP (varsayılan port 8085)** ve **HWiNFO paylaşımlı bellek** kaynakları.
-- **Türkçe ve İngilizce** uygulama, sistem tepsisi ve kurulum arayüzü; ek yazı tipleri ve Windows derleme iş akışı.
+- **Dahili LibreHardwareMonitor:** Paketle birlikte gelen .NET 8 sensör yardımcısı sayesinde ayrı LibreHardwareMonitor uygulaması veya HTTP sunucusu çalıştırmadan desteklenen donanım sensörlerini okuma.
+- **Genişletilmiş sensör bilgileri:** Donanımın desteklediği CPU frekansı, Vcore ve diğer voltajlar, anakart sensörleri, sıcaklıklar, fan ve pompa RPM değerleri arasından seçim yapabilme.
+- **Otomatik donanım keşfi:** Sabit anakart modelleri veya fan numaraları kullanılmadan sensörlerin dinamik olarak algılanması; kullanıcının kendi sistemine uygun okumaları seçebilmesi.
+- **Anlaşılır sensör adları:** Sensörler sekmesinde ve tasarım düzenleyicisinde teknik kimlikler yerine donanım ve sensör adlarının gösterilmesi; kayıtlı tasarımlardaki kararlı sensör anahtarlarının korunması.
+- **Mevcut sensör kaynaklarının korunması:** Yerleşik CPU/GPU bilgileri, isteğe bağlı HWiNFO paylaşımlı bellek ve harici LibreHardwareMonitor HTTP desteği kullanılmaya devam eder. Harici LHM portu değiştirilebilir (varsayılan `8085`).
+- **Türkçe ve İngilizce arayüz:** Uygulama, sensör ekranları, sistem tepsisi menüsü ve Windows kurulum yöneticisi için dil desteği.
+- **Ek LCD yazı tipleri:** Inter, Orbitron ve JetBrains Mono dahil sekiz yeni yazı tipi ailesi; eski yazı tipi kimlikleri ve kayıtlı tasarımlar korunur.
+- **Arayüz ve tasarım iyileştirmeleri:** Metin ve font görünümleri, çeviriler, yerleşim ayrıntıları ve kare LCD tasarım önizlemesi üzerinde düzenlemeler.
+- **Kurulum ve Windows hizmeti iyileştirmeleri:** Güncelleme sırasında çalışan uygulama, hizmet ve sensör yardımcısının yönetilmesi; iki dilli kurulum ekranları.
 
-Sensörlerin kullanılabilirliği donanıma göre değişir. Fan/pompa RPM değerlerinin okunabilmesi fan hızının kontrol edilebildiği anlamına gelmez.
+Sensörlerin kullanılabilirliği ve gereken erişim izinleri donanıma göre değişir. Fan/pompa RPM değerini okumak, fan hızını **kontrol etmek** anlamına gelmez. Ayrıntılar için [sensör rehberine](SENSOR-GUIDE.md) bakabilirsiniz.
+
+## Orijinal uygulamadan gelen özellikler
+
+- **480 × 480 LCD arka planları:** Nebula, Aurora, Neon Rings ve Sunset adlı dört hazır arka plan; ayrıca PNG, JPG, BMP, WebP, animasyonlu GIF ve MP4, MOV, MKV, WebM gibi video dosyaları. Doldur, sığdır ve esnet seçenekleri.
+- **Dört hazır istatistik tasarımı:** Halka göstergeler, gösterge paneli kartları, tek büyük istatistik ve saat + istatistik düzeni; renk, font, boyut, kenarlık ve arka plan karartma ayarları.
+- **Özel tasarım düzenleyicisi:** Metin, sensör değerleri, halka göstergeler, ilerleme çubukları, saat ve tarih bileşenlerini canlı önizlemede yerleştirme ve özelleştirme.
+- **Canlı CPU/GPU bilgileri:** Yerleşik CPU sıcaklığı ve yük ölçümü, NVML üzerinden NVIDIA GPU sıcaklığı ve yük ölçümü ve isteğe bağlı ek sensör kaynakları.
+- **Arka planda Windows hizmeti:** Bilgisayar açıldığında LCD'yi yönetme, ekranı aktif tutma ve uyku sonrasında yeniden bağlantı kurma; otomatik başlatma davranışını ayarlayabilme.
+- **Sistem tepsisi kontrolleri:** Uygulamayı açma, canlı istatistikleri gösterme, ekranı kapatma ve çıkış; Windows temasına uyumlu simge.
+- **Ekranı açma/kapatma:** Uygulama veya sistem tepsisinden LCD'yi kapatıp açma; kapalı tercihini yeniden başlatmalarda koruma.
+- **Windows görünümüne uyum:** Sistem temasını takip eden açık/koyu görünüm.
+- **İsteğe bağlı FFmpeg:** Video ve animasyonlu arka plan desteği; sistemin `PATH` ayarını değiştirmeden uygulama üzerinden yüklenebilir.
 
 ## Ekran Görüntüleri
 
 ### Arka Plan
-![Arka Plan](docs/screenshots/tr/background.png)
+![Arka plan ayarları (Türkçe)](docs/screenshots/tr/background.png)
 
 ### Tasarım
-![Tasarım](docs/screenshots/tr/design.png)
+![Tasarım düzenleyicisi (Türkçe)](docs/screenshots/tr/design.png)
 
 ### Sensörler
-![Sensörler](docs/screenshots/tr/sensors.png)
+![Sensör ayarları (Türkçe)](docs/screenshots/tr/sensors.png)
 
 ### Ayarlar
-![Ayarlar](docs/screenshots/tr/settings.png)
+![Uygulama ayarları (Türkçe)](docs/screenshots/tr/settings.png)
 
 ## Kurulum
 
-Windows 10/11 x64 üzerinde **tam kurulum paketini** kullanın. Paket Windows hizmetini ve dahili sensör yardımcısını yükler. Tek başına EXE tam kurulum yerine geçmez. USB cihaz çakışmalarını önlemek için orijinal Monster yazılımını kapatın.
+1. **Windows 10/11 x64** için [Sürümler](https://github.com/SefaMeert/aio-cooler-screen/releases/tag/v1.2.4-Fork) sayfasından **`AIO-Cooler-Screen-Setup-1.2.4-Fork.exe`** dosyasını indirip çalıştırın. Kurulumda Türkçe veya İngilizce seçebilirsiniz. Tam paket Windows hizmetini, dahili sensör yardımcısını ve ek LCD yazı tiplerini içerir.
+2. USB bağlantısında çakışmayı önlemek için AIO Cooler Screen'i kullanmadan önce Monster'ın orijinal LCD yazılımını kapatın.
+3. Uygulamayı açın, arka plan ve tasarım seçin; ardından Sensörler bölümünden istediğiniz değerleri belirleyin. Video ve animasyonlu arka planlar için isteğe bağlı FFmpeg gerekebilir.
 
-**İmzasız sürüm:** Smart App Control veya kurumsal uygulama denetimi kurulum dosyasını ya da sensör yardımcısını engelleyebilir. Çalıştırmak için Windows güvenlik korumasını kapatmayın. Tek bir bilgisayarda başarılı test bütün donanımlarda uyum garantisi değildir.
+Ayrı indirilebilen `aio-screen.exe` ileri düzey kullanım içindir ve **tam kurulum paketindeki bütün bileşenleri içermez**.
+
+**Smart App Control bilgilendirmesi:** Bu sürüm dijital olarak imzalanmamıştır. Windows 11'in Smart App Control (Akıllı Uygulama Denetimi) özelliği, testlerde gözlemlendiği gibi bazı bilgisayarlarda uygulamayı engelleyebilir; bu durum özelliğin açık olduğu her bilgisayarda sorun yaşanacağı anlamına gelmez. Smart App Control'ü açık tutmak veya devre dışı bırakmak kullanıcının kendi tercihidir. Dijital imzalama için çözüm araştırılmaktadır.
 
 ## Ayrıntılı belgeler
 
-[Sensör rehberi](SENSOR-GUIDE.md) · [Derleme ve paketleme](FORK-BUILD-README.md) · [Yazı tipleri](FONT-README.md) · [Üçüncü taraf lisansları](THIRD-PARTY-NOTICES.md)
+[Donanım sensörleri rehberi](SENSOR-GUIDE.md) · [Derleme ve kurulum paketi](FORK-BUILD-README.md) · [Ek yazı tipleri](FONT-README.md) · [Üçüncü taraf lisansları](THIRD-PARTY-NOTICES.md)
 
-Orijinal geliştiricinin MIT lisansı [LICENSE](LICENSE) dosyasında korunmaktadır. Dahili LibreHardwareMonitor dahil ek bileşenlerin lisansları için üçüncü taraf bildirimlerine bakın.
+Orijinal MIT lisansı [LICENSE](LICENSE) dosyasında korunmaktadır. Paketteki LibreHardwareMonitor bileşeninin ayrı MPL-2.0 yükümlülükleri üçüncü taraf bildirimlerinde açıklanmıştır.
