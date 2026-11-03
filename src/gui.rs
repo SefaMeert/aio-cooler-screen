@@ -173,7 +173,7 @@ fn show_window(ui: AppWindow) {
 /// Create or remove the tray icon, and reflect it in the Settings controls.
 fn set_tray(ui: &AppWindow, s: &mut State, on: bool) {
     if on && s.tray.is_none() {
-        match Tray::new(s.cfg.stats.enabled, s.cfg.display_off) {
+        match Tray::new(s.cfg.stats.enabled, s.cfg.display_off, s.prefs.language) {
             Ok(t) => s.tray = Some(t),
             Err(e) => show_message(ui, false, format!("{}: {e}", if s.prefs.language == 1 { "Sistem tepsisi simgesi oluşturulamadı" } else { "Could not create the tray icon" })),
         }
@@ -430,10 +430,24 @@ fn localized_widget_kind(kind: WidgetKind, lang: i32) -> &'static str {
     }
 }
 
-fn widget_label(w: &Widget, lang: i32) -> String {
+fn widget_label(w: &Widget, lang: i32, readings: &[Reading]) -> String {
     match w.kind {
         WidgetKind::Label => format!("{} \"{}\"", localized_widget_kind(w.kind, lang), w.text),
-        k if k.uses_stat() => format!("{}: {}", localized_widget_kind(k, lang), w.sensor_key.as_deref().unwrap_or(w.stat.title())),
+        k if k.uses_stat() => {
+            let name = match w.sensor_key.as_deref() {
+                Some(key) => readings.iter()
+                    .find(|r| r.key == key)
+                    .map(friendly_sensor_label)
+                    .unwrap_or_else(|| {
+                        // The selected reading may be temporarily unavailable.
+                        // Keep its stable key intact and make the offline state explicit.
+                        let status = if lang == 1 { "Çevrimdışı" } else { "Offline" };
+                        format!("{status}: {key}")
+                    }),
+                None => w.stat.title().to_string(),
+            };
+            format!("{}: {}", localized_widget_kind(k, lang), name)
+        }
         k => localized_widget_kind(k, lang).to_string(),
     }
 }
@@ -445,7 +459,7 @@ fn load_widgets_into_ui(ui: &AppWindow, state: &State) {
         ui.set_selected_widget(-1);
         return;
     };
-    let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, state.prefs.language).into()).collect();
+    let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, state.prefs.language, &state.readings).into()).collect();
     ui.set_widget_names(ModelRc::new(VecModel::from(names)));
     let Some((i, w)) = state.selected_widget.and_then(|i| d.widgets.get(i).map(|w| (i, w))) else {
         ui.set_selected_widget(-1);
@@ -519,7 +533,8 @@ fn sensor_category(kind: i32) -> (u8, &'static str) {
 fn friendly_sensor_label(r: &Reading) -> String {
     // Source prefix stays visible to distinguish identically named sensors.
     // The complete original reading key is preserved separately, never translated.
-    let source = if r.sensor.starts_with("LHM · ") { "LHM" }
+    let source = if r.sensor.starts_with("Internal LHM · ") { "Dahili LHM" }
+        else if r.sensor.starts_with("LHM · ") { "LHM" }
         else if r.sensor.starts_with("HWiNFO · ") { "HWiNFO" }
         else if r.sensor.starts_with("NVML · ") { "NVML" }
         else { "Sensor" };
@@ -654,6 +669,10 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
             let mut s = st.borrow_mut();
             s.prefs.language = lang.clamp(0, 1);
             if let Err(e) = s.prefs.save() { eprintln!("Failed to save language: {e}"); }
+            if let Some(tray) = &s.tray { tray.set_language(s.prefs.language); }
+            // Force localized sensor-picker text to refresh immediately.
+            s.rows_sig.clear();
+            update_stat_rows(&mut s);
             refresh_gallery(&ui, &s);
             load_widgets_into_ui(&ui, &s);
             let kinds: Vec<SharedString> = WidgetKind::ALL.iter()
@@ -775,7 +794,7 @@ fn wire_callbacks(ui: &AppWindow, state: &Rc<RefCell<State>>) {
         save(&ui, &s);
         // Only the list labels can change; keep the property controls as they are.
         if let Some(d) = s.cfg.stats.custom_design() {
-            let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, s.prefs.language).into()).collect();
+            let names: Vec<SharedString> = d.widgets.iter().map(|w| widget_label(w, s.prefs.language, &s.readings).into()).collect();
             ui.set_widget_names(ModelRc::new(VecModel::from(names)));
         }
         refresh_preview(&ui, &s);
@@ -1208,13 +1227,21 @@ fn fmt_value(stat: Stat, v: f64) -> String {
 /// drop-down isn't reset every second); otherwise just refresh the values.
 fn update_stat_rows(s: &mut State) {
     let mut keys = Vec::new();
-    let mut sig = String::new();
+    let mut labels = Vec::new();
+    let mut sig = format!("lang={};", s.prefs.language);
     for stat in Stat::ALL {
-        let k: Vec<String> = s.readings.iter().filter(|r| r.kind == stat.reading_kind()).map(|r| r.key.clone()).collect();
-        sig.push_str(&k.join("|"));
+        let candidates: Vec<&Reading> = sorted_sensor_readings(&s.readings)
+            .into_iter().filter(|r| r.kind == stat.reading_kind()).collect();
+        let k: Vec<String> = candidates.iter().map(|r| r.key.clone()).collect();
+        let names: Vec<String> = candidates.iter().map(|r| friendly_sensor_label(r)).collect();
+        // Include labels too, so updated hardware names refresh without changing the stored IDs.
+        for (key, name) in k.iter().zip(names.iter()) {
+            sig.push_str(&format!("{}:{}:{}:{};", key.len(), key, name.len(), name));
+        }
         sig.push_str(s.cfg.stats.source(stat).map_or("", |x| x));
         sig.push(';');
         keys.push(k);
+        labels.push(names);
     }
     let values = s.values();
     let rebuild = sig != s.rows_sig || s.rows.row_count() != Stat::ALL.len();
@@ -1227,9 +1254,13 @@ fn update_stat_rows(s: &mut State) {
             }
             continue;
         }
-        let auto = stat.auto_pick(&s.readings).map_or_else(|| "Otomatik".to_string(), |r| format!("Otomatik ({})", r.key));
+        let auto_prefix = if s.prefs.language == 1 { "Otomatik" } else { "Automatic" };
+        let auto = stat.auto_pick(&s.readings).map_or_else(
+            || auto_prefix.to_string(),
+            |r| format!("{auto_prefix} ({})", friendly_sensor_label(r)),
+        );
         let mut choices: Vec<SharedString> = vec![auto.into()];
-        choices.extend(keys[i].iter().map(|k| SharedString::from(k.as_str())));
+        choices.extend(labels[i].iter().map(|name| SharedString::from(name.as_str())));
         let index = s.cfg.stats.source(stat).and_then(|src| keys[i].iter().position(|k| k == src)).map_or(0, |p| p as i32 + 1);
         let row = StatRow { title: stat.title().into(), choices: ModelRc::new(VecModel::from(choices)), index, value };
         if i < s.rows.row_count() {

@@ -1,42 +1,43 @@
-# AIO Cooler Screen
+# AIO Cooler Screen — v1.2.4-Fork
 
-A fork of [Thnorty/aio-cooler-screen](https://github.com/Thnorty/aio-cooler-screen), with additional improvements maintained by **SefaMeert**. Designed for compatible Monster AIO cooler LCD screens (USB HID `1D6B:0130`).
+[**Türkçe**](TURKCE-README.md) | [Original project](https://github.com/Thnorty/aio-cooler-screen) | [Build and setup](FORK-BUILD-README.md) | [Sensor guide](SENSOR-GUIDE.md)
 
-[**Türkçe README**](TURKCE-README.md) · [Original project](https://github.com/Thnorty/aio-cooler-screen) · [Build instructions](FORK-BUILD-README.md)
+A Windows app for compatible Monster AIO cooler LCDs (USB HID `1D6B:0130`). This is an independent fork of **Thnorty/aio-cooler-screen**, maintained by SefaMeert. It is not affiliated with Monster.
 
-> **Project status:** Actively tested fork. The Windows build and installer have been built and launched on a test computer. Full compatibility with all hardware, fonts and LCD configurations has not been verified. **Release binaries are currently unsigned.** Windows Smart App Control may block them; do not disable system security protections just to install this application.
+## What it does
 
-![Screen designs](docs/designs.png)
+- 480 × 480 LCD backgrounds: images, animated GIFs, and videos (optional FFmpeg).
+- Ready-made layouts and a custom editor with text, values, gauges, overlays, and progress indicators.
+- Live CPU/GPU information and a background Windows service.
+- **Built-in hardware monitoring** via a bundled .NET / LibreHardwareMonitor helper, including available clocks, voltages, fans/pump RPM, and temperatures — without an external LHM web server.
+- Friendly sensor labels that preserve stable sensor identifiers in saved designs.
+- Optional **external LibreHardwareMonitor HTTP (default port 8085)** and **HWiNFO shared-memory** sources for other devices.
+- **English and Turkish** application UI, tray menu, and installer; additional fonts and Windows build workflow.
 
-## Improvements in this fork
+Hardware availability varies by system; unsupported sensors may be missing. Fan/pump RPM readings do not imply fan-speed control.
 
-- **Extended hardware sensors:** Additional LibreHardwareMonitor readings, including fan/pump RPM, voltage, power, current and clocks where available.
-- **Clearer sensor selection:** Sensor type/category labels while aiming to preserve identifiers used by existing designs.
-- **English and Turkish UI:** English by default, with a saved language preference. Hardware sensor names may remain in their original language.
-- **More fonts:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed and Oswald alongside existing choices. See [FONT-README.md](FONT-README.md).
-- **Windows build workflow:** GitHub Actions creates a full Windows installer and a standalone executable for advanced use.
+## Screenshots
 
-## Features inherited from the original project
+### Background
+![Background](docs/screenshots/en/background.png)
 
-- Built-in and custom image, video and GIF backgrounds for the 480×480 LCD.
-- Preset layouts, a custom editor, overlays, gauges, text and progress bars.
-- Temperature/load readings and integrations with HWiNFO and LibreHardwareMonitor.
-- A Windows background service for updating the LCD.
+### Design
+![Design](docs/screenshots/en/design.png)
 
-## Installation
+### Sensors
+![Sensors](docs/screenshots/en/sensors.png)
 
-Requires 64-bit Windows 10/11. For a new installation use the **full installer**; the standalone `aio-screen.exe` does not install the background service or supporting components. Close the original Monster LCD app before using this one to avoid device conflicts.
+### Settings
+![Settings](docs/screenshots/en/settings.png)
 
-**Windows security:** Unsigned installers may be blocked by Smart App Control. Source visibility and checksums help with auditing but are not proof of binary safety. Verify the release source and keep Windows security enabled.
+## Install
 
-[Build and artifact instructions](FORK-BUILD-README.md)
+Use the full **Windows x64 setup** on Windows 10/11. It installs the background service and internal sensor helper. The standalone EXE is not a replacement for the complete setup. Close the original Monster screen software to avoid USB device conflicts.
 
-## Hardware sensors
+**Unsigned build:** Smart App Control or enterprise application-control policies may block the installer or sensor helper. Do **not** disable Windows security to make it run. A test build passing on one computer does not guarantee compatibility elsewhere.
 
-Run LibreHardwareMonitor as administrator, enable **Options → Remote Web Server → Run**, and configure port `8085` in AIO Cooler Screen. Sensors are available only if your hardware and monitoring software expose them. Displaying fan RPM does **not** mean fan-speed control.
+## More information
 
-## Credits and licences
+[Detailed hardware sensor setup](SENSOR-GUIDE.md) · [Building and packaging](FORK-BUILD-README.md) · [Fonts](FONT-README.md) · [Third-party licences](THIRD-PARTY-NOTICES.md)
 
-This repository is a fork of **Thnorty's original AIO Cooler Screen**. Original copyright and MIT licence terms are preserved in [LICENSE](LICENSE). Additional components and fonts have their own terms: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and [FONT-README.md](FONT-README.md).
-
-This is an independent fork, not an official release from the original author or Monster Notebook. Not affiliated with or endorsed by Monster Notebook or Google. Their trademarks belong to their respective owners.
+The original author's MIT licence is retained in [LICENSE](LICENSE). See third-party notices for the bundled LibreHardwareMonitor library and other components.

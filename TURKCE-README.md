@@ -1,42 +1,43 @@
-# AIO Cooler Screen
+# AIO Cooler Screen — v1.2.4-Fork
 
-Bu depo, [Thnorty/aio-cooler-screen](https://github.com/Thnorty/aio-cooler-screen) projesinin **SefaMeert** tarafından ek geliştirmeler yapılan bir fork'udur. Uyumlu Monster AIO sıvı soğutucuların LCD ekranları (USB HID `1D6B:0130`) için hazırlanmıştır.
+[**English**](README.md) | [Orijinal proje](https://github.com/Thnorty/aio-cooler-screen) | [Derleme ve kurulum](FORK-BUILD-README.md) | [Sensör rehberi](SENSOR-GUIDE.md)
 
-[English README](README.md) · [Orijinal proje](https://github.com/Thnorty/aio-cooler-screen) · [Derleme rehberi](FORK-BUILD-README.md)
+Uyumlu Monster AIO soğutucuların LCD ekranları (USB HID `1D6B:0130`) için Windows uygulaması. **Thnorty/aio-cooler-screen** projesinin SefaMeert tarafından geliştirilen bağımsız fork'udur. Monster ile resmî bağlantısı yoktur.
 
-> **Proje durumu:** Windows derlemesi oluşturulmuş, kurulum dosyası bir test bilgisayarında açılmış ve uygulama denenmiştir. Tüm donanımlarda, fontlarda ve LCD yapılandırmalarında tam uyumluluk henüz doğrulanmamıştır. **Dağıtılan uygulama dosyaları şu anda dijital imzalı değildir.** Windows Smart App Control engelleyebilir; kurulum için Windows güvenlik korumalarını kapatmayın.
+## Özellikler
 
-![Ekran tasarımları](docs/designs.png)
+- 480 × 480 LCD için görsel, animasyonlu GIF ve video arka planları (isteğe bağlı FFmpeg).
+- Hazır tasarımlar ve metin, değer, gösterge, katman ve ilerleme çubuğu içeren özel tasarım düzenleyicisi.
+- Canlı CPU/GPU bilgileri ve Windows arka plan hizmeti.
+- **Dahili donanım sensörleri:** Birlikte gelen .NET / LibreHardwareMonitor yardımcısıyla, ayrı bir LHM web sunucusu olmadan desteklenen frekans, voltaj, sıcaklık ve fan/pompa RPM değerlerini okuma.
+- Kayıtlı tasarımlardaki kararlı sensör kimliklerini koruyan anlaşılır sensör adları.
+- Diğer donanımlar için isteğe bağlı **harici LibreHardwareMonitor HTTP (varsayılan port 8085)** ve **HWiNFO paylaşımlı bellek** kaynakları.
+- **Türkçe ve İngilizce** uygulama, sistem tepsisi ve kurulum arayüzü; ek yazı tipleri ve Windows derleme iş akışı.
 
-## Bu fork'taki geliştirmeler
+Sensörlerin kullanılabilirliği donanıma göre değişir. Fan/pompa RPM değerlerinin okunabilmesi fan hızının kontrol edilebildiği anlamına gelmez.
 
-- **Genişletilmiş donanım sensörleri:** Donanımın desteklediği fan/pompa RPM, voltaj, güç, akım ve frekans gibi LibreHardwareMonitor değerleri.
-- **Daha anlaşılır sensör seçimi:** Sensör türü/kategorisi etiketleri; mevcut tasarımların sensör kimliklerini koruma hedefi.
-- **İngilizce ve Türkçe arayüz:** Varsayılan İngilizce; dil tercihi kaydedilebilir. Donanımdan gelen sensör isimleri kendi dilinde kalabilir.
-- **Ek fontlar:** Google Sans, Google Sans Flex, Inter, Rajdhani, Orbitron, JetBrains Mono, Roboto Condensed ve Oswald. Ayrıntılar: [FONT-README.md](FONT-README.md).
-- **GitHub Actions:** Tam Windows kurulum paketi ve ileri düzey kullanıcılar için tek başına EXE dosyası üretimi.
+## Ekran Görüntüleri
 
-## Orijinal projeden gelen özellikler
+### Arka Plan
+![Arka Plan](docs/screenshots/tr/background.png)
 
-- 480×480 LCD için hazır ve özel görsel, video ve GIF arka planları.
-- Hazır tasarımlar, özel düzenleyici, bilgi katmanları, göstergeler, yazılar ve ilerleme çubukları.
-- Sıcaklık/yük verileri ve HWiNFO ile LibreHardwareMonitor entegrasyonu.
-- LCD ekranını güncelleyen Windows arka plan hizmeti.
+### Tasarım
+![Tasarım](docs/screenshots/tr/design.png)
+
+### Sensörler
+![Sensörler](docs/screenshots/tr/sensors.png)
+
+### Ayarlar
+![Ayarlar](docs/screenshots/tr/settings.png)
 
 ## Kurulum
 
-64 bit Windows 10/11 gerekir. Yeni kurulumda **tam kurulum paketini** kullanın. Bağımsız `aio-screen.exe`, arka plan hizmetini ve yardımcı bileşenleri kurmaz. LCD'yi iki programın aynı anda kontrol etmemesi için orijinal Monster LCD uygulamasını kapatın.
+Windows 10/11 x64 üzerinde **tam kurulum paketini** kullanın. Paket Windows hizmetini ve dahili sensör yardımcısını yükler. Tek başına EXE tam kurulum yerine geçmez. USB cihaz çakışmalarını önlemek için orijinal Monster yazılımını kapatın.
 
-**Windows güvenliği:** İmzasız kurulum dosyaları Smart App Control tarafından engellenebilir. Kaynak kodunun açık olması veya SHA-256 değerinin yayımlanması tek başına ikili dosyanın güvenli olduğunu kanıtlamaz. İndirdiğiniz sürümün kaynağını doğrulayın ve Windows güvenlik özelliklerini açık tutun.
+**İmzasız sürüm:** Smart App Control veya kurumsal uygulama denetimi kurulum dosyasını ya da sensör yardımcısını engelleyebilir. Çalıştırmak için Windows güvenlik korumasını kapatmayın. Tek bir bilgisayarda başarılı test bütün donanımlarda uyum garantisi değildir.
 
-[Derleme ve çıktı dosyaları rehberi](FORK-BUILD-README.md)
+## Ayrıntılı belgeler
 
-## Donanım sensörleri
+[Sensör rehberi](SENSOR-GUIDE.md) · [Derleme ve paketleme](FORK-BUILD-README.md) · [Yazı tipleri](FONT-README.md) · [Üçüncü taraf lisansları](THIRD-PARTY-NOTICES.md)
 
-LibreHardwareMonitor uygulamasını yönetici olarak çalıştırın; **Options → Remote Web Server → Run** özelliğini etkinleştirin ve AIO Cooler Screen'de `8085` portunu kullanın. Yalnızca donanım ve izleme yazılımının sunduğu sensörler listelenir. Fan RPM değerinin gösterilmesi, **fan hızı kontrolü** anlamına gelmez.
-
-## Katkılar ve lisanslar
-
-Bu depo, **Thnorty'nin AIO Cooler Screen** projesi temel alınarak geliştirilmiştir. Orijinal telif hakları ve [MIT lisansı](LICENSE) korunmuştur. Yardımcı bileşenler ve fontlar için [üçüncü taraf bildirimlerine](THIRD-PARTY-NOTICES.md) ve [font rehberine](FONT-README.md) bakın.
-
-Bu fork orijinal geliştiricinin veya Monster Notebook'un resmî sürümü değildir; Monster Notebook ya da Google tarafından desteklenmez. İlgili marka adları sahiplerine aittir.
+Orijinal geliştiricinin MIT lisansı [LICENSE](LICENSE) dosyasında korunmaktadır. Dahili LibreHardwareMonitor dahil ek bileşenlerin lisansları için üçüncü taraf bildirimlerine bakın.
